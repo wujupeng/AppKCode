@@ -3,6 +3,7 @@ import XCTest
 @testable import AppKCodeApplication
 @testable import AppKCodeShared
 @testable import AppKCodeInfrastructure
+@testable import AppKCodePresentation
 
 final class M1SmokeTest: XCTestCase {
     func testM1_01_appLaunchesWithShellView() {
