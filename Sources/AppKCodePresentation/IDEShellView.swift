@@ -1,5 +1,7 @@
 import SwiftUI
 import AppKit
+import AppKCodeShared
+import AppKCodeApplication
 
 public struct IDEShellRootView: View {
     public init() {}
@@ -9,13 +11,16 @@ public struct IDEShellRootView: View {
 }
 
 struct IDEShellView: View {
+    @StateObject private var projectExplorerVM = ProjectExplorerViewModel(workspaceService: WorkspaceService())
+    @StateObject private var editorVM = EditorViewModel()
+
     var body: some View {
         HSplitView {
-            ProjectExplorerPlaceholderView()
+            ProjectExplorerView(viewModel: projectExplorerVM)
                 .frame(minWidth: 200, idealWidth: 250)
 
             VSplitView {
-                EditorPlaceholderView()
+                EditorView(viewModel: editorVM)
                     .frame(minWidth: 400, minHeight: 300)
 
                 BottomPanelPlaceholderView()
@@ -26,40 +31,6 @@ struct IDEShellView: View {
                 .frame(minWidth: 300, idealWidth: 350)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-struct ProjectExplorerPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "folder")
-                .font(.system(size: 32))
-                .foregroundColor(.secondary)
-            Text("Project Explorer")
-                .font(.headline)
-            Text("Open a folder to browse files")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.controlBackgroundColor))
-    }
-}
-
-struct EditorPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 32))
-                .foregroundColor(.secondary)
-            Text("Editor")
-                .font(.headline)
-            Text("Open a file to start editing")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.textBackgroundColor))
     }
 }
 

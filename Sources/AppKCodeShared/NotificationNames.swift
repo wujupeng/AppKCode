@@ -10,4 +10,6 @@ public extension Notification.Name {
     static let appkEditorJumpToLine = Notification.Name("AppKEditorJumpToLine")
     static let appkApprovalRequested = Notification.Name("AppKApprovalRequested")
     static let appkApprovalResolved = Notification.Name("AppKApprovalResolved")
+    static let appkRestoreWorkspace = Notification.Name("AppKRestoreWorkspace")
+    static let appkCloseRequested = Notification.Name("AppKCloseRequested")
 }

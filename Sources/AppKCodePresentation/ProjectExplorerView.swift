@@ -24,6 +24,11 @@ struct ProjectExplorerView: View {
         .onReceive(NotificationCenter.default.publisher(for: .appkOpenFolderRequested)) { _ in
             showOpenPanel()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .appkRestoreWorkspace)) { notification in
+            if let url = notification.object as? URL {
+                viewModel.openFolder(url)
+            }
+        }
     }
 
     private func fileList(_ root: FileTreeEntry) -> some View {

@@ -27,6 +27,11 @@ final class AppKCodeAppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.register(defaults: [
             "appkcode.modelRouter.defaultEndpoint": "http://127.0.0.1:8080"
         ])
+        if let workspaceURL = serviceContainer.workspaceService.loadPersistedWorkspace() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NotificationCenter.default.post(name: .appkRestoreWorkspace, object: workspaceURL)
+            }
+        }
     }
 }
 
@@ -54,7 +59,20 @@ struct AppKCodeCommands: Commands {
                 NotificationCenter.default.post(name: .appkSaveAsRequested, object: nil)
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
+
+            Button("Close") {
+                NotificationCenter.default.post(name: .appkCloseRequested, object: nil)
+            }
+            .keyboardShortcut("w", modifiers: .command)
+        }
+        CommandGroup(after: .toolbar) {
+            Button("Toggle Sidebar") {}
+                .keyboardShortcut("s", modifiers: [.command, .control])
+            Button("Toggle Bottom Panel") {}
+                .keyboardShortcut("b", modifiers: [.command, .control])
+        }
+        CommandGroup(replacing: .help) {
+            Button("AppKCode Help") {}
         }
     }
 }
-

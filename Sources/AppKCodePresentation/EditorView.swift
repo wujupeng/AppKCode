@@ -30,6 +30,11 @@ struct EditorView: View {
                 viewModel.jumpToLine(line)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .appkCloseRequested)) { _ in
+            if let idx = viewModel.activeDocumentIndex {
+                handleTabClose(at: idx)
+            }
+        }
     }
 
     private var tabBar: some View {
@@ -50,7 +55,7 @@ struct EditorView: View {
                 .font(.system(size: 12))
                 .padding(.horizontal, 8)
             Button(action: {
-                _ = viewModel.closeDocument(at: index)
+                handleTabClose(at: index)
             }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 8))
@@ -93,6 +98,28 @@ struct EditorView: View {
         panel.nameFieldStringValue = doc.url.lastPathComponent
         if panel.runModal() == .OK, let url = panel.url {
             viewModel.saveActiveDocumentAs(to: url)
+        }
+    }
+
+    private func handleTabClose(at index: Int) {
+        guard index < viewModel.openDocuments.count else { return }
+        let doc = viewModel.openDocuments[index]
+        if doc.isDirty {
+            let alert = NSAlert()
+            alert.messageText = "Save changes to \(doc.displayName)?"
+            alert.informativeText = "Your changes will be lost if you don't save them."
+            alert.addButton(withTitle: "Save")
+            alert.addButton(withTitle: "Don't Save")
+            alert.addButton(withTitle: "Cancel")
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                viewModel.saveActiveDocument()
+                _ = viewModel.closeDocument(at: index, force: true)
+            } else if response == .alertSecondButtonReturn {
+                _ = viewModel.closeDocument(at: index, force: true)
+            }
+        } else {
+            _ = viewModel.closeDocument(at: index, force: true)
         }
     }
 }
