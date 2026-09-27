@@ -22,27 +22,27 @@ public final class ProcessRunner: @unchecked Sendable {
             }
 
             DispatchQueue.global().async {
-                var stdoutData = Data()
-                var stderrData = Data()
+                let stdoutData = NSMutableData()
+                let stderrData = NSMutableData()
                 let group = DispatchGroup()
 
                 group.enter()
                 DispatchQueue.global().async {
-                    stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                    stdoutData.setData(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
                     group.leave()
                 }
 
                 group.enter()
                 DispatchQueue.global().async {
-                    stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                    stderrData.setData(stderrPipe.fileHandleForReading.readDataToEndOfFile())
                     group.leave()
                 }
 
                 process.waitUntilExit()
                 group.wait()
 
-                let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-                let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+                let stdout = String(data: stdoutData as Data, encoding: .utf8) ?? ""
+                let stderr = String(data: stderrData as Data, encoding: .utf8) ?? ""
                 continuation.resume(returning: ProcessResult(stdout: stdout, stderr: stderr, exitCode: process.terminationStatus))
             }
         }
@@ -71,27 +71,27 @@ public final class ProcessRunner: @unchecked Sendable {
             try? stdinPipe.fileHandleForWriting.close()
 
             DispatchQueue.global().async {
-                var stdoutData = Data()
-                var stderrData = Data()
+                let stdoutData = NSMutableData()
+                let stderrData = NSMutableData()
                 let group = DispatchGroup()
 
                 group.enter()
                 DispatchQueue.global().async {
-                    stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                    stdoutData.setData(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
                     group.leave()
                 }
 
                 group.enter()
                 DispatchQueue.global().async {
-                    stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                    stderrData.setData(stderrPipe.fileHandleForReading.readDataToEndOfFile())
                     group.leave()
                 }
 
                 process.waitUntilExit()
                 group.wait()
 
-                let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-                let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+                let stdout = String(data: stdoutData as Data, encoding: .utf8) ?? ""
+                let stderr = String(data: stderrData as Data, encoding: .utf8) ?? ""
                 continuation.resume(returning: ProcessResult(stdout: stdout, stderr: stderr, exitCode: process.terminationStatus))
             }
         }
