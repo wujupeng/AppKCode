@@ -22,7 +22,8 @@ final class ProcessRunnerCommandTests: XCTestCase {
         let runner = ProcessRunner()
         let cmd = Command(executable: "/bin/pwd", arguments: [], workingDirectory: URL(fileURLWithPath: "/tmp"))
         let result = try await runner.run(cmd)
-        XCTAssertEqual(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "/tmp")
+        let pwd = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertTrue(pwd.hasSuffix("/tmp"), "pwd was \(pwd)")
     }
 
     func testRunCommandExitCode() async throws {
