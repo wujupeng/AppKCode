@@ -114,11 +114,10 @@ final class GitServiceImplTests: XCTestCase {
 
     func testG3_GetCommitDiff() async throws {
         try await initRepo()
-        try await createAndCommitFile("test.txt", "line1\n")
-        let status = try await service.getStatus(at: tempRepoURL)
-        _ = status
-        let log = try await service.getLog(at: tempRepoURL, limit: 1, skip: 0)
-        XCTAssertEqual(log.count, 1)
+        try await createAndCommitFile("a.txt", "a")
+        try await createAndCommitFile("b.txt", "b")
+        let log = try await service.getLog(at: tempRepoURL, limit: 2, skip: 0)
+        XCTAssertEqual(log.count, 2)
         let diffs = try await service.getCommitDiff(at: tempRepoURL, sha: log[0].sha)
         XCTAssertFalse(diffs.isEmpty)
     }
