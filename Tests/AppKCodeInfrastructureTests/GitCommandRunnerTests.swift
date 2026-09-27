@@ -21,6 +21,7 @@ final class GitCommandRunnerTests: XCTestCase {
         _ = try await runner.run(arguments: ["init"], at: tempRepoURL)
         _ = try await runner.run(arguments: ["config", "user.name", "Test"], at: tempRepoURL)
         _ = try await runner.run(arguments: ["config", "user.email", "test@test.com"], at: tempRepoURL)
+        _ = try await runner.run(arguments: ["config", "gc.auto", "0"], at: tempRepoURL)
     }
 
     func testRun_RevParseHead() async throws {

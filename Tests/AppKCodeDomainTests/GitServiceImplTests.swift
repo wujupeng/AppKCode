@@ -24,6 +24,7 @@ final class GitServiceImplTests: XCTestCase {
         _ = try await runner.run(arguments: ["init"], at: tempRepoURL)
         _ = try await runner.run(arguments: ["config", "user.name", "Test"], at: tempRepoURL)
         _ = try await runner.run(arguments: ["config", "user.email", "test@test.com"], at: tempRepoURL)
+        _ = try await runner.run(arguments: ["config", "gc.auto", "0"], at: tempRepoURL)
     }
 
     private func createAndCommitFile(_ name: String, _ content: String) async throws {
