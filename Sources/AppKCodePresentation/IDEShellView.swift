@@ -1,8 +1,9 @@
 import SwiftUI
 import AppKit
 
-struct IDEShellRootView: View {
-    var body: some View {
+public struct IDEShellRootView: View {
+    public init() {}
+    public var body: some View {
         IDEShellView()
     }
 }
