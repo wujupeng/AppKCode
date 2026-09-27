@@ -84,21 +84,27 @@ public final class JSONRPCCodec: @unchecked Sendable {
     }
 
     private func parseMessage(_ data: Data) -> JSONRPCMessage? {
-        let decoder = JSONDecoder()
-
-        if let response = try? decoder.decode(JSONRPCResponse.self, from: data) {
-            return .response(response)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
         }
 
-        if let notification = try? decoder.decode(JSONRPCNotification.self, from: data) {
-            if let request = try? decoder.decode(JSONRPCRequest.self, from: data) {
-                return .request(request)
+        if json["method"] != nil {
+            if json["id"] != nil {
+                let decoder = JSONDecoder()
+                if let request = try? decoder.decode(JSONRPCRequest.self, from: data) {
+                    return .request(request)
+                }
+            } else {
+                let decoder = JSONDecoder()
+                if let notification = try? decoder.decode(JSONRPCNotification.self, from: data) {
+                    return .notification(notification)
+                }
             }
-            return .notification(notification)
-        }
-
-        if let request = try? decoder.decode(JSONRPCRequest.self, from: data) {
-            return .request(request)
+        } else if json["result"] != nil || json["error"] != nil {
+            let decoder = JSONDecoder()
+            if let response = try? decoder.decode(JSONRPCResponse.self, from: data) {
+                return .response(response)
+            }
         }
 
         return nil
