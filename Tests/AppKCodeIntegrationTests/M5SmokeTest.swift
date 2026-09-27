@@ -10,8 +10,8 @@ final class M5SmokeTest: XCTestCase {
     // MARK: - G1: Repository Detection
 
     func testM5_G1_01_gitServiceProtocolExists() {
-        let _: GitServiceProtocol.Type = GitServiceProtocol.self
-        XCTAssertNotNil(GitServiceProtocol.self)
+        let svc: GitServiceProtocol = GitServiceImpl()
+        XCTAssertNotNil(svc)
     }
 
     func testM5_G1_02_gitRepositoryStatusExists() {
@@ -169,7 +169,8 @@ final class M5SmokeTest: XCTestCase {
     // MARK: - H8: Git Operation Layer Isolation
 
     func testM5_H8_01_gitServiceProtocolIsInDomain() {
-        XCTAssertTrue(GitServiceProtocol.self is Any.Type)
+        let svc: GitServiceProtocol = GitServiceImpl()
+        XCTAssertNotNil(svc)
     }
 
     func testM5_H8_02_gitServiceImplImplementsProtocol() {
@@ -177,6 +178,7 @@ final class M5SmokeTest: XCTestCase {
         XCTAssertNotNil(svc)
     }
 
+    @MainActor
     func testM5_H8_03_gitStateManagerExists() async {
         let svc = GitServiceImpl()
         let manager = GitStateManager(gitService: svc)
@@ -184,6 +186,7 @@ final class M5SmokeTest: XCTestCase {
         XCTAssertNotNil(manager.status)
     }
 
+    @MainActor
     func testM5_H8_04_gitStateManagerComputedProperties() async {
         let svc = GitServiceImpl()
         let manager = GitStateManager(gitService: svc)
