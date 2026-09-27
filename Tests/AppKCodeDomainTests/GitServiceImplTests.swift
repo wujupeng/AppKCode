@@ -17,6 +17,8 @@ final class GitServiceImplTests: XCTestCase {
         if FileManager.default.fileExists(atPath: tempRepoURL.path) {
             try? FileManager.default.removeItem(at: tempRepoURL)
         }
+        tempRepoURL = nil
+        service = nil
     }
 
     private func initRepo() async throws {

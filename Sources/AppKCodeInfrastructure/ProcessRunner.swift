@@ -21,19 +21,7 @@ public final class ProcessRunner: @unchecked Sendable {
         process.standardError = stderrHandle
 
         return try await withCheckedThrowingContinuation { continuation in
-            do {
-                try process.run()
-            } catch {
-                try? stdoutHandle.close()
-                try? stderrHandle.close()
-                try? FileManager.default.removeItem(at: stdoutPath)
-                try? FileManager.default.removeItem(at: stderrPath)
-                continuation.resume(throwing: AppKError.toolExecutionFailed(tool: command.executable, cause: error.localizedDescription))
-                return
-            }
-
-            DispatchQueue.global().async {
-                process.waitUntilExit()
+            process.terminationHandler = { proc in
                 try? stdoutHandle.close()
                 try? stderrHandle.close()
 
@@ -44,7 +32,18 @@ public final class ProcessRunner: @unchecked Sendable {
 
                 let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
                 let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-                continuation.resume(returning: ProcessResult(stdout: stdout, stderr: stderr, exitCode: process.terminationStatus))
+                continuation.resume(returning: ProcessResult(stdout: stdout, stderr: stderr, exitCode: proc.terminationStatus))
+            }
+
+            do {
+                try process.run()
+            } catch {
+                process.terminationHandler = nil
+                try? stdoutHandle.close()
+                try? stderrHandle.close()
+                try? FileManager.default.removeItem(at: stdoutPath)
+                try? FileManager.default.removeItem(at: stderrPath)
+                continuation.resume(throwing: AppKError.toolExecutionFailed(tool: command.executable, cause: error.localizedDescription))
             }
         }
     }
@@ -67,22 +66,7 @@ public final class ProcessRunner: @unchecked Sendable {
         process.standardError = stderrHandle
 
         return try await withCheckedThrowingContinuation { continuation in
-            do {
-                try process.run()
-            } catch {
-                try? stdoutHandle.close()
-                try? stderrHandle.close()
-                try? FileManager.default.removeItem(at: stdoutPath)
-                try? FileManager.default.removeItem(at: stderrPath)
-                continuation.resume(throwing: AppKError.toolExecutionFailed(tool: command.executable, cause: error.localizedDescription))
-                return
-            }
-
-            stdinPipe.fileHandleForWriting.write(Data(stdin.utf8))
-            try? stdinPipe.fileHandleForWriting.close()
-
-            DispatchQueue.global().async {
-                process.waitUntilExit()
+            process.terminationHandler = { proc in
                 try? stdoutHandle.close()
                 try? stderrHandle.close()
 
@@ -93,8 +77,23 @@ public final class ProcessRunner: @unchecked Sendable {
 
                 let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
                 let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-                continuation.resume(returning: ProcessResult(stdout: stdout, stderr: stderr, exitCode: process.terminationStatus))
+                continuation.resume(returning: ProcessResult(stdout: stdout, stderr: stderr, exitCode: proc.terminationStatus))
             }
+
+            do {
+                try process.run()
+            } catch {
+                process.terminationHandler = nil
+                try? stdoutHandle.close()
+                try? stderrHandle.close()
+                try? FileManager.default.removeItem(at: stdoutPath)
+                try? FileManager.default.removeItem(at: stderrPath)
+                continuation.resume(throwing: AppKError.toolExecutionFailed(tool: command.executable, cause: error.localizedDescription))
+                return
+            }
+
+            stdinPipe.fileHandleForWriting.write(Data(stdin.utf8))
+            try? stdinPipe.fileHandleForWriting.close()
         }
     }
 
