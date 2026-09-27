@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+.DS_Store
+*.dmg
+*.sha256
+nul

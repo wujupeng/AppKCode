@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build DMG + SHA-256
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build release
+        run: |
+          swift build -c release -Xswiftc -target -Xswiftc x86_64-apple-macos15.0
+
+      - name: Architecture check
+        run: |
+          chmod +x CI&/arch-check.sh
+          CI/arch-check.sh .build/release/AppKCode
+
+      - name: Create app bundle
+        run: |
+          mkdir -p AppKCode.app/Contents/MacOS
+          mkdir -p AppKCode.app/Contents/Resources
+          cp .build/release/AppKCode AppKCode.app/Contents/MacOS/AppKCode
+          cat >5.0
+          CFBundleName = AppKCode
+          CFBundleIdentifier = com.appkcode.app
+          CFBundleExecutable = AppKCode
+          CFBundlePackageType = APPL
+          CFBundleVersion = ${GITHUB_REF#refs/tags/v}
+          </plist>
+          EOF
+
+      - name: Create DMG
+        run: |
+          hdiutil create -volname AppKCode -srcfolder AppKCode.app -ov -format UDZO AppKCode.dmg
+
+      - name: Generate SHA-256
+        run: |
+          shasum -a 256 AppKCode.dmg > AppKCode.dmg.sha256
+
+      - name: Intel smoke test
+        run: |
+          chmod +x CI/intel-smoke-test.sh
+          CI/intel-smoke-test.sh AppKCode.dmg
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppKCode-release
+          path: |
+            AppKCode.dmg
+            AppKCode.dmg.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+'          AppKCode.dmg
+          AppKCode.dmg.sha256

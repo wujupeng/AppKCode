@@ -1,0 +1,48 @@
+name: Intel Build & Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  intel-build:
+    name: Build on Intel Mac (x86_64)
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Verify architecture
+        run: |
+          echo "uname -m: $(uname -m)"
+          if [ "$(uname -m)" != "x86_64" ]; then
+            echo "FATAL: Not on x86_64 runner"
+            exit 1
+          fi
+
+      - name: Build (x86_64 locked)
+        run: |
+          swift build -c release -Xswiftc -target -Xswiftc x86_64-apple-macos15.0
+
+      - name: Architecture check
+        run: |
+          chmod +x CI/arch-check.sh
+          CI/arch-check.sh .build/release/AppKCode
+
+      - name: ARM dependency check
+        run: |
+          chmod +x CI/arm-dep-check.sh
+          CI/arm-dep-check.sh
+
+      - name: Run tests
+        run: swift test
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppKCode-x86_64
+          path: .build/release/AppKCode
