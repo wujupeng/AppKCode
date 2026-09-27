@@ -54,7 +54,7 @@ public final class LSPProcessManager: ObservableObject, @unchecked Sendable {
         proc.standardError = stderr
 
         proc.terminationHandler = { [weak self] p in
-            self?.handleTermination(status: p.terminationStatus)
+            self?.handleTermination(status: Int(p.terminationStatus))
         }
 
         self.process = proc
