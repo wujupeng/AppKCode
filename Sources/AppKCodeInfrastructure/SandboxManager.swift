@@ -11,14 +11,14 @@ public final class SandboxManager: InfraSandboxManager, @unchecked Sendable {
             let home = FileManager.default.homeDirectoryForCurrentUser
             self.baseDirectory = home.appendingPathComponent(".appk/sandboxes")
         }
-        try? FileManager.default.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: self.baseDirectory, withIntermediateDirectories: true)
     }
 
     public func createSandbox(session: AgentSessionID) throws -> URL {
         let sandboxURL = baseDirectory.appendingPathComponent(session.rawValue)
         do {
             try FileManager.default.createDirectory(at: sandboxURL, withIntermediateDirectories: true)
-            FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: sandboxURL.path)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: sandboxURL.path)
             return sandboxURL
         } catch {
             throw AppKError.sandboxCreationFailed(sessionID: session.rawValue)

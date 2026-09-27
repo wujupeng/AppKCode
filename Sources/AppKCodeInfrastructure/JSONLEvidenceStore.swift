@@ -12,7 +12,7 @@ public final class JSONLEvidenceStore: InfraEvidenceStore, @unchecked Sendable {
             let home = FileManager.default.homeDirectoryForCurrentUser
             self.evidenceDirectory = home.appendingPathComponent(".appk/evidence")
         }
-        try? FileManager.default.createDirectory(at: evidenceDirectory, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: self.evidenceDirectory, withIntermediateDirectories: true)
     }
 
     public func append(_ record: EvidenceRecord) async throws {

@@ -12,7 +12,7 @@ public final class StructuredLogger: @unchecked Sendable {
             let home = FileManager.default.homeDirectoryForCurrentUser
             self.logDirectory = home.appendingPathComponent(".appk/logs")
         }
-        try? FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: self.logDirectory, withIntermediateDirectories: true)
     }
 
     public func log(level: LogLevel, bundle: String, message: String, traceID: TraceID = TraceID(), spanID: SpanID = SpanID()) {

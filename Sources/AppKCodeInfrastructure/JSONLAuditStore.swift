@@ -12,7 +12,7 @@ public final class JSONLAuditStore: InfraAuditStore, @unchecked Sendable {
             let home = FileManager.default.homeDirectoryForCurrentUser
             self.auditDirectory = home.appendingPathComponent(".appk/audit")
         }
-        try? FileManager.default.createDirectory(at: auditDirectory, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: self.auditDirectory, withIntermediateDirectories: true)
     }
 
     public func append(_ record: AuditRecord) async throws {
