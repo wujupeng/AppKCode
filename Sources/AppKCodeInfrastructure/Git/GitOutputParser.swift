@@ -23,11 +23,11 @@ public final class GitOutputParser: @unchecked Sendable {
 
                     if let aheadRange = upstreamPart.range(of: "ahead ") {
                         let afterAhead = String(upstreamPart[aheadRange.upperBound...])
-                        ahead = Int(afterAhead.split(separator: " ").first ?? "") ?? 0
+                        ahead = extractNumber(afterAhead)
                     }
                     if let behindRange = upstreamPart.range(of: "behind ") {
                         let afterBehind = String(upstreamPart[behindRange.upperBound...])
-                        behind = Int(afterBehind.split(separator: " ").first ?? "") ?? 0
+                        behind = extractNumber(afterBehind)
                     }
                 } else {
                     branch = branchPart
@@ -241,6 +241,15 @@ public final class GitOutputParser: @unchecked Sendable {
             return Date(timeIntervalSince1970: timestamp)
         }
         return Date()
+    }
+
+    private func extractNumber(_ s: String) -> Int {
+        var numStr = ""
+        for ch in s {
+            if ch.isNumber { numStr.append(ch) }
+            else if !numStr.isEmpty { break }
+        }
+        return Int(numStr) ?? 0
     }
 
     public var logFormat: String {
