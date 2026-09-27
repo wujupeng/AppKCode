@@ -8,41 +8,42 @@ public final class ProcessRunner: @unchecked Sendable {
         let process = Process()
         try configure(process, command)
 
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        let tmpDir = FileManager.default.temporaryDirectory
+        let stdoutPath = tmpDir.appendingPathComponent("appk-stdout-\(UUID().uuidString)")
+        let stderrPath = tmpDir.appendingPathComponent("appk-stderr-\(UUID().uuidString)")
+
+        FileManager.default.createFile(atPath: stdoutPath.path, contents: nil)
+        FileManager.default.createFile(atPath: stderrPath.path, contents: nil)
+
+        let stdoutHandle = try FileHandle(forWritingTo: stdoutPath)
+        let stderrHandle = try FileHandle(forWritingTo: stderrPath)
+        process.standardOutput = stdoutHandle
+        process.standardError = stderrHandle
 
         return try await withCheckedThrowingContinuation { continuation in
             do {
                 try process.run()
             } catch {
+                try? stdoutHandle.close()
+                try? stderrHandle.close()
+                try? FileManager.default.removeItem(at: stdoutPath)
+                try? FileManager.default.removeItem(at: stderrPath)
                 continuation.resume(throwing: AppKError.toolExecutionFailed(tool: command.executable, cause: error.localizedDescription))
                 return
             }
 
             DispatchQueue.global().async {
-                let stdoutData = NSMutableData()
-                let stderrData = NSMutableData()
-                let group = DispatchGroup()
-
-                group.enter()
-                DispatchQueue.global().async {
-                    stdoutData.setData(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
-                    group.leave()
-                }
-
-                group.enter()
-                DispatchQueue.global().async {
-                    stderrData.setData(stderrPipe.fileHandleForReading.readDataToEndOfFile())
-                    group.leave()
-                }
-
                 process.waitUntilExit()
-                group.wait()
+                try? stdoutHandle.close()
+                try? stderrHandle.close()
 
-                let stdout = String(data: stdoutData as Data, encoding: .utf8) ?? ""
-                let stderr = String(data: stderrData as Data, encoding: .utf8) ?? ""
+                let stdoutData = (try? Data(contentsOf: stdoutPath)) ?? Data()
+                let stderrData = (try? Data(contentsOf: stderrPath)) ?? Data()
+                try? FileManager.default.removeItem(at: stdoutPath)
+                try? FileManager.default.removeItem(at: stderrPath)
+
+                let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+                let stderr = String(data: stderrData, encoding: .utf8) ?? ""
                 continuation.resume(returning: ProcessResult(stdout: stdout, stderr: stderr, exitCode: process.terminationStatus))
             }
         }
@@ -53,16 +54,26 @@ public final class ProcessRunner: @unchecked Sendable {
         try configure(process, command)
 
         let stdinPipe = Pipe()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
         process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+
+        let tmpDir = FileManager.default.temporaryDirectory
+        let stdoutPath = tmpDir.appendingPathComponent("appk-stdin-stdout-\(UUID().uuidString)")
+        let stderrPath = tmpDir.appendingPathComponent("appk-stdin-stderr-\(UUID().uuidString)")
+        FileManager.default.createFile(atPath: stdoutPath.path, contents: nil)
+        FileManager.default.createFile(atPath: stderrPath.path, contents: nil)
+        let stdoutHandle = try FileHandle(forWritingTo: stdoutPath)
+        let stderrHandle = try FileHandle(forWritingTo: stderrPath)
+        process.standardOutput = stdoutHandle
+        process.standardError = stderrHandle
 
         return try await withCheckedThrowingContinuation { continuation in
             do {
                 try process.run()
             } catch {
+                try? stdoutHandle.close()
+                try? stderrHandle.close()
+                try? FileManager.default.removeItem(at: stdoutPath)
+                try? FileManager.default.removeItem(at: stderrPath)
                 continuation.resume(throwing: AppKError.toolExecutionFailed(tool: command.executable, cause: error.localizedDescription))
                 return
             }
@@ -71,27 +82,17 @@ public final class ProcessRunner: @unchecked Sendable {
             try? stdinPipe.fileHandleForWriting.close()
 
             DispatchQueue.global().async {
-                let stdoutData = NSMutableData()
-                let stderrData = NSMutableData()
-                let group = DispatchGroup()
-
-                group.enter()
-                DispatchQueue.global().async {
-                    stdoutData.setData(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
-                    group.leave()
-                }
-
-                group.enter()
-                DispatchQueue.global().async {
-                    stderrData.setData(stderrPipe.fileHandleForReading.readDataToEndOfFile())
-                    group.leave()
-                }
-
                 process.waitUntilExit()
-                group.wait()
+                try? stdoutHandle.close()
+                try? stderrHandle.close()
 
-                let stdout = String(data: stdoutData as Data, encoding: .utf8) ?? ""
-                let stderr = String(data: stderrData as Data, encoding: .utf8) ?? ""
+                let stdoutData = (try? Data(contentsOf: stdoutPath)) ?? Data()
+                let stderrData = (try? Data(contentsOf: stderrPath)) ?? Data()
+                try? FileManager.default.removeItem(at: stdoutPath)
+                try? FileManager.default.removeItem(at: stderrPath)
+
+                let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+                let stderr = String(data: stderrData, encoding: .utf8) ?? ""
                 continuation.resume(returning: ProcessResult(stdout: stdout, stderr: stderr, exitCode: process.terminationStatus))
             }
         }
