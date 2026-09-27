@@ -65,8 +65,14 @@ let package = Package(
         ),
         .testTarget(
             name: "AppKCodeDomainTests",
-            dependencies: ["AppKCodeDomain", "AppKCodeShared"],
+            dependencies: ["AppKCodeDomain", "AppKCodeInfrastructure", "AppKCodeShared"],
             path: "Tests/AppKCodeDomainTests",
+            swiftSettings: x86_64Settings
+        ),
+        .testTarget(
+            name: "AppKCodeInfrastructureTests",
+            dependencies: ["AppKCodeInfrastructure", "AppKCodeShared"],
+            path: "Tests/AppKCodeInfrastructureTests",
             swiftSettings: x86_64Settings
         ),
         .testTarget(

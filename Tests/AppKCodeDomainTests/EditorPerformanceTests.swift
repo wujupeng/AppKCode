@@ -79,6 +79,6 @@ final class EditorPerformanceTests: XCTestCase {
         let results = engine.find(query: "Hello", in: buffer)
         let elapsed = Date().timeIntervalSince(start)
         XCTAssertEqual(results.count, 10000)
-        XCTAssertLessThan(elapsed, 60.0, "Search in 120KB text should be under 60s — TODO: optimize SearchEngine O(n*m) algorithm")
+        XCTAssertLessThan(elapsed, 1.0, "Search in 120KB text should be under 1s (Boyer-Moore-Horspool)")
     }
 }
