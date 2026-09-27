@@ -22,7 +22,8 @@ public struct EditOperation: Sendable {
     public var inverse: EditOperation {
         switch type {
         case .insert:
-            return EditOperation(type: .delete, range: range, text: originalText, originalText: text)
+            let newEnd = TextLocation(line: 0, column: 0, offset: range.start.offset + text.count)
+            return EditOperation(type: .delete, range: TextRange(start: range.start, end: newEnd), text: "", originalText: text)
         case .delete:
             return EditOperation(type: .insert, range: range, text: originalText, originalText: text)
         case .replace:
