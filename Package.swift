@@ -1,10 +1,10 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 5.8
 import PackageDescription
 
 let package = Package(
     name: "AppKCode",
     platforms: [
-        .macOS(.v15)
+        .macOS(.v13)
     ],
     products: [
         .executable(name: "AppKCode", targets: ["AppKCodeApp"])
@@ -91,5 +91,5 @@ let package = Package(
 )
 
 let x86_64Settings: [SwiftSetting] = [
-    .unsafeFlags(["-target", "x86_64-apple-macos15.0"])
+    .unsafeFlags(["-target", "x86_64-apple-macos13.0"])
 ]

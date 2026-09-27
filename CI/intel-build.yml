@@ -26,7 +26,7 @@ jobs:
 
       - name: Build (x86_64 locked)
         run: |
-          swift build -c release -Xswiftc -target -Xswiftc x86_64-apple-macos15.0
+          swift build -c release -Xswiftc -target -Xswiftc x86_64-apple-macos13.0
 
       - name: Architecture check
         run: |
