@@ -22,9 +22,25 @@ public final class ProcessRunner: @unchecked Sendable {
             }
 
             DispatchQueue.global().async {
+                var stdoutData = Data()
+                var stderrData = Data()
+                let group = DispatchGroup()
+
+                group.enter()
+                DispatchQueue.global().async {
+                    stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                    group.leave()
+                }
+
+                group.enter()
+                DispatchQueue.global().async {
+                    stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                    group.leave()
+                }
+
                 process.waitUntilExit()
-                let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                group.wait()
+
                 let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
                 let stderr = String(data: stderrData, encoding: .utf8) ?? ""
                 continuation.resume(returning: ProcessResult(stdout: stdout, stderr: stderr, exitCode: process.terminationStatus))
@@ -55,9 +71,25 @@ public final class ProcessRunner: @unchecked Sendable {
             try? stdinPipe.fileHandleForWriting.close()
 
             DispatchQueue.global().async {
+                var stdoutData = Data()
+                var stderrData = Data()
+                let group = DispatchGroup()
+
+                group.enter()
+                DispatchQueue.global().async {
+                    stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                    group.leave()
+                }
+
+                group.enter()
+                DispatchQueue.global().async {
+                    stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                    group.leave()
+                }
+
                 process.waitUntilExit()
-                let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                group.wait()
+
                 let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
                 let stderr = String(data: stderrData, encoding: .utf8) ?? ""
                 continuation.resume(returning: ProcessResult(stdout: stdout, stderr: stderr, exitCode: process.terminationStatus))
