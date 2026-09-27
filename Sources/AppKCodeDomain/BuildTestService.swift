@@ -16,7 +16,7 @@ public final class BuildTestService: @unchecked Sendable {
                 return tool
             }
             if tool == .xcodebuild {
-                let xcodeDirs = (try? FileManager.default.contentsOfDirectory(atPath: url.path, includingPropertiesForKeys: nil)) ?? []
+                let xcodeDirs = (try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)) ?? []
                 if xcodeDirs.contains(where: { $0.hasSuffix(".xcodeproj") || $0.hasSuffix(".xcworkspace") }) {
                     return .xcodebuild
                 }
