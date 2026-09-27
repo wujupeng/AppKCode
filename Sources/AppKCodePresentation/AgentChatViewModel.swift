@@ -9,7 +9,7 @@ public enum ChatStatus: Equatable {
     case active
 }
 
-public struct ChatMessage: Identifiable, Equatable {
+public struct LegacyChatMessage: Identifiable, Equatable {
     public let id = UUID()
     public let role: Role
     public let content: String
@@ -25,7 +25,7 @@ public struct ChatMessage: Identifiable, Equatable {
 }
 
 public final class AgentChatViewModel: ObservableObject {
-    @Published public var messages: [ChatMessage] = []
+    @Published public var messages: [LegacyChatMessage] = []
     @Published public var status: ChatStatus = .idle
     @Published public var statusText: String = "Ready"
 
@@ -42,7 +42,7 @@ public final class AgentChatViewModel: ObservableObject {
     }
 
     public func sendMessage(_ text: String) {
-        messages.append(ChatMessage(role: .user, content: text))
+        messages.append(LegacyChatMessage(role: .user, content: text))
         status = .thinking
         statusText = "Thinking…"
 
@@ -58,19 +58,19 @@ public final class AgentChatViewModel: ObservableObject {
                 let response = try await self.orchestrator.submitRequest(request, session: session)
 
                 await MainActor.run {
-                    self.messages.append(ChatMessage(role: .assistant, content: response.report.details))
+                    self.messages.append(LegacyChatMessage(role: .assistant, content: response.report.details))
                     self.status = .idle
                     self.statusText = "Ready"
                 }
             } catch let AppKError.modelUnavailable(endpoint, cause) {
                 await MainActor.run {
-                    self.messages.append(ChatMessage(role: .assistant, content: "模型不可用：\(endpoint)\n请检查本地 G-AI Model Server 是否启动。\n错误：\(cause)"))
+                    self.messages.append(LegacyChatMessage(role: .assistant, content: "模型不可用：\(endpoint)\n请检查本地 G-AI Model Server 是否启动。\n错误：\(cause)"))
                     self.status = .error
                     self.statusText = "Error"
                 }
             } catch {
                 await MainActor.run {
-                    self.messages.append(ChatMessage(role: .assistant, content: "错误：\(error.localizedDescription)"))
+                    self.messages.append(LegacyChatMessage(role: .assistant, content: "错误：\(error.localizedDescription)"))
                     self.status = .error
                     self.statusText = "Error"
                 }

@@ -2,7 +2,7 @@ import Foundation
 
 public typealias SHA256 = String
 
-public struct ISO8601Timestamp: Sendable, Equatable, Hashable, Comparable {
+public struct ISO8601Timestamp: Sendable, Equatable, Hashable, Comparable, Codable {
     public let rawValue: String
 
     public init() {

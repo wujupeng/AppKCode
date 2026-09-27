@@ -9,7 +9,7 @@ struct AgentChatView: View {
         VStack(spacing: 0) {
             chatHeader
             messageList
-            ChatInputBar(onSend: viewModel.sendMessage)
+            LegacyChatInputBar(onSend: viewModel.sendMessage)
         }
     }
 
@@ -51,7 +51,7 @@ struct AgentChatView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(viewModel.messages) { msg in
-                        ChatMessageView(message: msg)
+                        LegacyChatMessageView(message: msg)
                             .id(msg.id)
                     }
                 }
@@ -66,8 +66,8 @@ struct AgentChatView: View {
     }
 }
 
-struct ChatMessageView: View {
-    let message: ChatMessage
+struct LegacyChatMessageView: View {
+    let message: LegacyChatMessage
 
     var body: some View {
         HStack {
@@ -86,7 +86,7 @@ struct ChatMessageView: View {
     }
 }
 
-struct ChatInputBar: View {
+struct LegacyChatInputBar: View {
     @State private var inputText: String = ""
     let onSend: (String) -> Void
 

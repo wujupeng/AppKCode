@@ -2,6 +2,8 @@ import SwiftUI
 import AppKit
 import AppKCodeShared
 import AppKCodeApplication
+import AppKCodeDomain
+import AppKCodeInfrastructure
 
 public struct IDEShellRootView: View {
     public init() {}
@@ -13,6 +15,32 @@ public struct IDEShellRootView: View {
 struct IDEShellView: View {
     @StateObject private var projectExplorerVM = ProjectExplorerViewModel(workspaceService: WorkspaceService())
     @StateObject private var editorVM = EditorViewModel()
+    @StateObject private var chatVM: ChatViewModel
+
+    init() {
+        let registry = ModelProviderRegistry()
+        let resolver = LocalModeResolver()
+        _ = resolver.resolveDefault(registry: registry)
+        let store = ChatSessionStore()
+        let chatService = ChatServiceImpl(registry: registry, store: store)
+        let contextProviders: [ContextProvider] = [
+            CurrentFileContextProvider(),
+            SelectedTextContextProvider(),
+            CurrentSymbolContextProvider(),
+            OpenTabsContextProvider(),
+            WorkspaceContextProvider(),
+            DiagnosticsContextProvider(),
+            GitDiffContextProvider(),
+            BuildTestResultsContextProvider()
+        ]
+        let aggregator = ContextAggregator(providers: contextProviders)
+        let orchestrator = ChatOrchestrator(
+            chatService: chatService,
+            contextAggregator: aggregator,
+            registry: registry
+        )
+        _chatVM = StateObject(wrappedValue: ChatViewModel(orchestrator: orchestrator))
+    }
 
     var body: some View {
         HSplitView {
@@ -27,27 +55,10 @@ struct IDEShellView: View {
                     .frame(minHeight: 100, idealHeight: 200)
             }
 
-            AgentChatPlaceholderView()
+            ChatPanelView(viewModel: chatVM)
                 .frame(minWidth: 300, idealWidth: 350)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-struct AgentChatPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 32))
-                .foregroundColor(.secondary)
-            Text("AI Agent")
-                .font(.headline)
-            Text("Ask anything about your code")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.controlBackgroundColor))
     }
 }
 

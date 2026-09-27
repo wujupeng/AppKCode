@@ -48,7 +48,7 @@ public struct InferenceResponse: Sendable, Equatable {
     }
 }
 
-public struct TokenUsage: Sendable, Equatable {
+public struct TokenUsage: Sendable, Equatable, Codable {
     public let promptTokens: Int
     public let completionTokens: Int
     public init(promptTokens: Int, completionTokens: Int) {
