@@ -136,7 +136,7 @@ public enum LSPResponseParser {
         guard let dict = data.value as? [String: AnyCodable] else { return nil }
         let name = (dict["name"]?.value as? String) ?? ""
         let kind = (dict["kind"]?.value as? Int64).flatMap { SymbolKind(rawValue: Int($0)) } ?? .variable
-        guard let location = parseLocation(dict["location"]) else { return nil }
+        guard let locationData = dict["location"], let location = parseLocation(locationData) else { return nil }
         let containerName = dict["containerName"]?.value as? String
         return SymbolInformation(name: name, kind: kind, location: location, containerName: containerName)
     }

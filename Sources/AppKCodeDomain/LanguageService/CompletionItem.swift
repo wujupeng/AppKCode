@@ -21,9 +21,9 @@ public enum CompletionItemKind: Int, Codable, Sendable, Equatable {
     case folder = 18
     case enumMember = 19
     case constant = 20
-    case struct = 21
+    case `struct` = 21
     case event = 22
-    case operator = 23
+    case `operator` = 23
     case typeParameter = 24
 }
 

@@ -31,10 +31,10 @@ public final class DiagnosticManager: ObservableObject {
     }
 
     public func allDiagnosticsFlat() -> [(url: URL, diagnostic: Diagnostic)] {
-        var result: [(URL, Diagnostic)] = []
+        var result: [(url: URL, diagnostic: Diagnostic)] = []
         for (url, diags) in allDiagnostics {
             for diag in diags {
-                result.append((url, diag))
+                result.append((url: url, diagnostic: diag))
             }
         }
         return result.sorted { a, b in

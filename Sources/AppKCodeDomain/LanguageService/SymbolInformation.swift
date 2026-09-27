@@ -23,9 +23,9 @@ public enum SymbolKind: Int, Codable, Sendable, Equatable {
     case key = 20
     case null = 21
     case enumMember = 22
-    case struct = 23
+    case `struct` = 23
     case event = 24
-    case operator = 25
+    case `operator` = 25
     case typeParameter = 26
 }
 
