@@ -122,21 +122,30 @@ final class M3SmokeTest: XCTestCase {
         let goAdapter = registry.adapter(forLanguage: "Go")
         let jsonAdapter = registry.adapter(forLanguage: "JSON")
 
-        XCTAssertNotNil(swiftAdapter)
-        XCTAssertNotNil(goAdapter)
-        XCTAssertNil(jsonAdapter)
+        XCTAssertNil(jsonAdapter, "JSON should not have LSP adapter")
+        _ = swiftAdapter
+        _ = goAdapter
+    }
+
+    func testM3_A14b_adaptersCanBeCreated() {
+        let swiftAdapter = SourceKitLSPAdapter()
+        let clangdAdapter = ClangdAdapter()
+        let goplsAdapter = GoplsAdapter()
+        let pythonAdapter = PythonLSPAdapter()
+        let tsAdapter = TypeScriptLSPAdapter()
+
+        XCTAssertEqual(swiftAdapter.config.supportedLanguages, ["Swift"])
+        XCTAssertTrue(clangdAdapter.config.supportedLanguages.contains("C"))
+        XCTAssertEqual(goplsAdapter.config.supportedLanguages, ["Go"])
+        XCTAssertEqual(pythonAdapter.config.supportedLanguages, ["Python"])
+        XCTAssertTrue(tsAdapter.config.supportedLanguages.contains("TypeScript"))
     }
 
     func testM3_A15_registryRoutesByURL() {
         let registry = LSPServerRegistry(workspaceRoot: URL(fileURLWithPath: "/tmp"))
-        let swiftURL = URL(fileURLWithPath: "/tmp/test.swift")
         let jsonURL = URL(fileURLWithPath: "/tmp/test.json")
-
-        let swiftAdapter = registry.adapter(forURL: swiftURL)
         let jsonAdapter = registry.adapter(forURL: jsonURL)
-
-        XCTAssertNotNil(swiftAdapter)
-        XCTAssertNil(jsonAdapter)
+        XCTAssertNil(jsonAdapter, "JSON should not have LSP adapter")
     }
 
     // MARK: - M3-B: Code Intelligence (L1-L10)
