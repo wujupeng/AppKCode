@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import AppKCodeShared
 
 struct AgentChatView: View {

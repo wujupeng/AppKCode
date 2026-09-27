@@ -28,9 +28,13 @@ struct TerminalView: NSViewRepresentable {
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
         if textView.string != viewModel.output {
-            let oldLength = textView.string.count
-            textView.replaceCharacters(in: NSRange(location: oldLength, length: 0), with: String(viewModel.output.suffix(viewModel.output.count - oldLength)))
-            textView.scrollToEndOfDocument(nil)
+            let oldUTF16 = (textView.string as NSString).length
+            let newUTF16 = (viewModel.output as NSString).length
+            if newUTF16 > oldUTF16 {
+                let appended = (viewModel.output as NSString).substring(from: oldUTF16)
+                textView.replaceCharacters(in: NSRange(location: oldUTF16, length: 0), with: appended)
+                textView.scrollToEndOfDocument(nil)
+            }
         }
     }
 
