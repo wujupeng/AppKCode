@@ -28,7 +28,10 @@ public final class SimpleSyntaxHighlighter: DomainSyntaxHighlighter {
 
         while i < text.endIndex {
             if let prefix = lineCommentPrefix, text[i...].hasPrefix(prefix) {
-                let lineEnd = text.lineEndIndex(after: i)
+                var lineEnd = i
+                while lineEnd < text.endIndex && text[lineEnd] != "\n" {
+                    lineEnd = text.index(after: lineEnd)
+                }
                 let length = text.distance(from: i, to: lineEnd)
                 tokens.append(SyntaxToken(type: .comment,
                     range: TextRange(start: TextLocation(line: 0, column: 0, offset: offset),

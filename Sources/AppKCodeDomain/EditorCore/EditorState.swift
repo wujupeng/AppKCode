@@ -6,7 +6,7 @@ public final class EditorState: @unchecked Sendable {
     public let selection: Selection
     public let undoManager: EditorUndoManager
     public let searchEngine: SearchEngine
-    public var scrollPosition: CGPoint = .zero
+    public var scrollPosition: CGPoint = CGPoint(x: 0, y: 0)
     public var fontSize: CGFloat = 13
     public var showLineNumbers: Bool = true
     public var highlightCurrentLine: Bool = true

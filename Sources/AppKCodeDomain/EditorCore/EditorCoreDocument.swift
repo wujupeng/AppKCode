@@ -1,14 +1,15 @@
 import Foundation
+import AppKCodeShared
 
 public final class EditorCoreDocument: @unchecked Sendable {
     public let id = UUID()
     public let url: URL
     public private(set) var buffer: TextBuffer
     public var isDirty: Bool = false
-    public let encoding: StringEncoding
+    public let encoding: String.Encoding
     public var language: String
 
-    public init(url: URL, content: String = "", encoding: StringEncoding = .utf8) {
+    public init(url: URL, content: String = "", encoding: String.Encoding = .utf8) {
         self.url = url
         self.buffer = TextBuffer(content)
         self.encoding = encoding
