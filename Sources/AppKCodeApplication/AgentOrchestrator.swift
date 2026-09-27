@@ -5,14 +5,14 @@ import AppKCodeDomain
 import AppKCodeInfrastructure
 
 public enum HashUtil {
-    public static func sha256(_ string: String) -> SHA256 {
+    public static func sha256(_ string: String) -> String {
         let data = Data(string.utf8)
-        let digest = SHA256.hash(data: data)
+        let digest = CryptoKit.SHA256.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    public static func sha256(_ data: Data) -> SHA256 {
-        let digest = SHA256.hash(data: data)
+    public static func sha256(_ data: Data) -> String {
+        let digest = CryptoKit.SHA256.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 }
