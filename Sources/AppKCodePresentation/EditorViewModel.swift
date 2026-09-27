@@ -1,5 +1,7 @@
 import Foundation
 import AppKCodeShared
+import AppKCodeDomain
+import AppKCodeInfrastructure
 import AppKit
 
 public final class EditorViewModel: ObservableObject {
@@ -7,7 +9,20 @@ public final class EditorViewModel: ObservableObject {
     @Published public var activeDocumentIndex: Int? = nil
     @Published public var pendingCloseIndex: Int? = nil
 
+    public let highlighterRegistry = SyntaxHighlighterRegistry()
+    private var editorStates: [UUID: EditorState] = [:]
+
     public init() {}
+
+    public func editorState(for doc: EditorDocument) -> EditorState {
+        if let existing = editorStates[doc.id] {
+            return existing
+        }
+        let coreDoc = EditorCoreDocument(url: doc.url, content: doc.content)
+        let state = EditorState(document: coreDoc)
+        editorStates[doc.id] = state
+        return state
+    }
 
     public var activeDocument: EditorDocument? {
         guard let idx = activeDocumentIndex, idx < openDocuments.count else { return nil }
