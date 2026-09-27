@@ -3,7 +3,6 @@ import Foundation
 public final class JSONRPCCodec: @unchecked Sendable {
     private var buffer = Data()
     private let lock = NSLock()
-    private let headerSeparator = "\r\n\r\n".data(using: .utf8)!
     private let contentLengthPrefix = "Content-Length: "
 
     public init() {}
@@ -24,7 +23,11 @@ public final class JSONRPCCodec: @unchecked Sendable {
                 break
             }
             messages.append(message)
-            buffer.removeFirst(consumed)
+            if consumed > 0 && consumed <= buffer.count {
+                buffer.removeFirst(consumed)
+            } else {
+                break
+            }
         }
 
         lock.unlock()
@@ -39,19 +42,24 @@ public final class JSONRPCCodec: @unchecked Sendable {
                 break
             }
             messages.append(message)
-            buffer.removeFirst(consumed)
+            if consumed > 0 && consumed <= buffer.count {
+                buffer.removeFirst(consumed)
+            } else {
+                break
+            }
         }
         lock.unlock()
         return messages
     }
 
     private func decodeOne() -> (JSONRPCMessage, Int)? {
-        guard let separatorRange = buffer.range(of: headerSeparator) else {
+        let bytes = [UInt8](buffer)
+        guard let sepPos = findHeaderSeparator(in: bytes) else {
             return nil
         }
 
-        let headerData = buffer[0..<separatorRange.lowerBound]
-        guard let header = String(data: headerData, encoding: .utf8) else {
+        let headerBytes = Array(bytes[0..<sepPos])
+        guard let header = String(bytes: headerBytes, encoding: .utf8) else {
             return nil
         }
 
@@ -63,24 +71,35 @@ public final class JSONRPCCodec: @unchecked Sendable {
             }
         }
 
-        guard let length = contentLength else {
+        guard let length = contentLength, length > 0 else {
             return nil
         }
 
-        let bodyStart = separatorRange.upperBound
+        let bodyStart = sepPos + 4
         let bodyEnd = bodyStart + length
 
-        guard buffer.count >= bodyEnd else {
+        guard bytes.count >= bodyEnd else {
             return nil
         }
 
-        let bodyData = buffer[bodyStart..<bodyEnd]
+        let bodyBytes = Array(bytes[bodyStart..<bodyEnd])
+        let bodyData = Data(bodyBytes)
         guard let message = parseMessage(bodyData) else {
             return nil
         }
 
-        let totalConsumed = bodyEnd
-        return (message, totalConsumed)
+        return (message, bodyEnd)
+    }
+
+    private func findHeaderSeparator(in bytes: [UInt8]) -> Int? {
+        let n = bytes.count
+        if n < 4 { return nil }
+        for i in 0...(n - 4) {
+            if bytes[i] == 0x0D && bytes[i+1] == 0x0A && bytes[i+2] == 0x0D && bytes[i+3] == 0x0A {
+                return i
+            }
+        }
+        return nil
     }
 
     private func parseMessage(_ data: Data) -> JSONRPCMessage? {
