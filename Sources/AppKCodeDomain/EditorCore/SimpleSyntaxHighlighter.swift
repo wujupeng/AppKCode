@@ -1,5 +1,4 @@
 import Foundation
-import AppKCodeDomain
 import AppKCodeShared
 
 public final class SimpleSyntaxHighlighter: DomainSyntaxHighlighter {
@@ -166,7 +165,7 @@ public final class SyntaxHighlighterRegistry: @unchecked Sendable {
 
     private let objcKeywords: Set<String> = ["@interface", "@implementation", "@end", "@property", "@synthesize", "@dynamic", "@class", "@protocol", "@optional", "@required", "@selector", "@encode", "@defs", "id", "YES", "NO", "nil", "Nil", "self", "super", "instancetype", "nonatomic", "atomic", "strong", "weak", "copy", "retain", "assign", "readonly", "readwrite"]
 
-    private let cppKeywords: Set<String> = ["namespace", "using", "template", "typename", "class", "public", "private", "protected", "virtual", "override", "final", "new", "delete", "this", "nullptr", "true", "false", "std", "const", "constexpr", "auto", "static_cast", "dynamic_cast", "reinterpret_cast", "const_cast", " noexcept", "throw", "try", "catch", "operator", "friend", "inline", "explicit", "mutable", "thread_local"]
+    private let cppKeywords: Set<String> = ["namespace", "using", "template", "typename", "class", "public", "private", "protected", "virtual", "override", "final", "new", "delete", "this", "nullptr", "true", "false", "std", "const", "constexpr", "auto", "static_cast", "dynamic_cast", "reinterpret_cast", "const_cast", "noexcept", "throw", "try", "catch", "operator", "friend", "inline", "explicit", "mutable", "thread_local"]
 
     private let pythonKeywords: Set<String> = ["def", "class", "if", "elif", "else", "while", "for", "in", "not", "and", "or", "is", "None", "True", "False", "import", "from", "as", "pass", "break", "continue", "return", "yield", "raise", "try", "except", "finally", "with", "lambda", "global", "nonlocal", "del", "assert", "async", "await", "self", "cls", "print", "len", "range", "str", "int", "float", "list", "dict", "set", "tuple", "bool"]
 
