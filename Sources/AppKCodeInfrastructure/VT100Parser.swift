@@ -19,6 +19,7 @@ public struct TerminalCell: Equatable {
 public enum TerminalColor: Equatable {
     case `default`, black, red, green, yellow, blue, magenta, cyan, white
     case brightBlack, brightRed, brightGreen, brightYellow, brightBlue, brightMagenta, brightCyan, brightWhite
+    case color256(Int)
 }
 
 public final class VT100Parser: @unchecked Sendable {
@@ -28,6 +29,12 @@ public final class VT100Parser: @unchecked Sendable {
     public private(set) var currentFgColor: TerminalColor = .default
     public private(set) var currentBgColor: TerminalColor = .default
     public private(set) var bold: Bool = false
+    public private(set) var cursorVisible: Bool = true
+    public private(set) var alternateScreenActive: Bool = false
+
+    private var alternateGrid: [[TerminalCell]]? = nil
+    private var alternateCursorRow: Int = 0
+    private var alternateCursorCol: Int = 0
 
     private let maxRows: Int
     private let maxCols: Int
@@ -36,6 +43,10 @@ public final class VT100Parser: @unchecked Sendable {
         self.maxRows = rows
         self.maxCols = cols
         self.grid = Array(repeating: Array(repeating: TerminalCell(), count: cols), count: rows)
+    }
+
+    public var cursorPosition: (row: Int, col: Int) {
+        (cursorRow, cursorCol)
     }
 
     public func parse(_ data: Data) {
@@ -75,6 +86,11 @@ public final class VT100Parser: @unchecked Sendable {
 
     private func parseEscapeSequence(_ text: String, from start: String.Index) -> String.Index {
         var i = text.index(after: start)
+
+        if i < text.endIndex && text[i] == "?" {
+            return parsePrivateMode(text, from: i)
+        }
+
         var params: [Int] = []
         var currentParam = ""
 
@@ -121,8 +137,63 @@ public final class VT100Parser: @unchecked Sendable {
         return i
     }
 
+    private func parsePrivateMode(_ text: String, from start: String.Index) -> String.Index {
+        var i = start
+        var paramStr = ""
+        while i < text.endIndex {
+            let ch = text[i]
+            if ch.isNumber {
+                paramStr.append(ch)
+            } else if ch == "h" {
+                applyPrivateMode(paramStr, enable: true)
+                return text.index(after: i)
+            } else if ch == "l" {
+                applyPrivateMode(paramStr, enable: false)
+                return text.index(after: i)
+            }
+            i = text.index(after: i)
+        }
+        return i
+    }
+
+    private func applyPrivateMode(_ param: String, enable: Bool) {
+        switch param {
+        case "25":
+            cursorVisible = enable
+        case "1049":
+            if enable {
+                if alternateGrid == nil {
+                    alternateGrid = grid
+                    alternateCursorRow = cursorRow
+                    alternateCursorCol = cursorCol
+                    grid = Array(repeating: Array(repeating: TerminalCell(), count: maxCols), count: maxRows)
+                    cursorRow = 0
+                    cursorCol = 0
+                }
+                alternateScreenActive = true
+            } else {
+                if let saved = alternateGrid {
+                    grid = saved
+                    cursorRow = alternateCursorRow
+                    cursorCol = alternateCursorCol
+                    alternateGrid = nil
+                }
+                alternateScreenActive = false
+            }
+        default:
+            break
+        }
+    }
+
     private func applySGR(_ params: [Int]) {
-        for p in params {
+        if params.isEmpty {
+            currentFgColor = .default; currentBgColor = .default; bold = false
+            return
+        }
+
+        var i = 0
+        while i < params.count {
+            let p = params[i]
             switch p {
             case 0: currentFgColor = .default; currentBgColor = .default; bold = false
             case 1: bold = true
@@ -150,8 +221,19 @@ public final class VT100Parser: @unchecked Sendable {
             case 45: currentBgColor = .magenta
             case 46: currentBgColor = .cyan
             case 47: currentBgColor = .white
+            case 38:
+                if i + 2 < params.count && params[i + 1] == 5 {
+                    currentFgColor = .color256(params[i + 2])
+                    i += 2
+                }
+            case 48:
+                if i + 2 < params.count && params[i + 1] == 5 {
+                    currentBgColor = .color256(params[i + 2])
+                    i += 2
+                }
             default: break
             }
+            i += 1
         }
     }
 

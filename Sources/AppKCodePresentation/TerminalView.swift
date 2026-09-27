@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import AppKCodeShared
 import AppKCodeInfrastructure
+import AppKCodeDomain
 
 struct TerminalView: NSViewRepresentable {
     @ObservedObject var viewModel: TerminalViewModel
@@ -17,7 +18,8 @@ struct TerminalView: NSViewRepresentable {
         textView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
         textView.textColor = NSColor.textColor
         textView.backgroundColor = NSColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1.0)
-        textView.isRichText = false
+        textView.isRichText = true
+        textView.allowsBackgroundColor = true
 
         scrollView.documentView = textView
         context.coordinator.textView = textView
@@ -27,14 +29,9 @@ struct TerminalView: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
-        if textView.string != viewModel.output {
-            let oldUTF16 = (textView.string as NSString).length
-            let newUTF16 = (viewModel.output as NSString).length
-            if newUTF16 > oldUTF16 {
-                let appended = (viewModel.output as NSString).substring(from: oldUTF16)
-                textView.replaceCharacters(in: NSRange(location: oldUTF16, length: 0), with: appended)
-                textView.scrollToEndOfDocument(nil)
-            }
+        if viewModel.attributedOutput.length > 0 && textView.string != viewModel.plainOutput {
+            textView.textStorage?.setAttributedString(viewModel.attributedOutput)
+            textView.scrollToEndOfDocument(nil)
         }
     }
 
@@ -50,32 +47,41 @@ struct TerminalView: NSViewRepresentable {
 }
 
 final class TerminalViewModel: ObservableObject {
-    @Published var output: String = ""
-    private let ptyManager = PTYManager()
-    private let parser = VT100Parser()
+    @Published var plainOutput: String = ""
+    @Published var attributedOutput: NSAttributedString = NSAttributedString()
+    private let session: TerminalSession
     private var readTask: Task<Void, Never>?
+    private let renderer = TerminalRenderer()
+
+    init(rows: Int = 50, cols: Int = 200) {
+        self.session = TerminalSession(rows: rows, cols: cols)
+    }
 
     func start() {
         guard readTask == nil else { return }
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        let command = Command(executable: shell, arguments: [], environment: [:])
         do {
-            try ptyManager.spawn(shell: shell)
+            try session.start(command: command)
             startReading()
         } catch {
-            output = "无法创建终端，请关闭其他终端后重试\n"
+            plainOutput = "无法创建终端，请关闭其他终端后重试\n"
+            attributedOutput = NSAttributedString(string: plainOutput)
         }
     }
 
     private func startReading() {
         readTask = Task { [weak self] in
             guard let self = self else { return }
-            while !Task.isCancelled && self.ptyManager.isAlive {
-                let data = await self.ptyManager.read()
+            while !Task.isCancelled && self.session.isRunning {
+                let data = await self.session.pty.read()
                 if !data.isEmpty {
-                    self.parser.parse(data)
-                    let rendered = self.parser.renderText()
+                    self.session.parser.parse(data)
+                    let rendered = self.renderer.renderAttributedString(from: self.session.parser.grid)
+                    let plain = self.renderer.renderText(from: self.session.parser.grid)
                     await MainActor.run {
-                        self.output = rendered
+                        self.attributedOutput = rendered
+                        self.plainOutput = plain
                     }
                 }
                 try? await Task.sleep(nanoseconds: 10_000_000)
@@ -84,13 +90,17 @@ final class TerminalViewModel: ObservableObject {
     }
 
     func sendInput(_ text: String) {
-        try? ptyManager.writeString(text)
+        try? session.sendInput(text)
+    }
+
+    func resize(cols: Int, rows: Int) {
+        session.resize(cols: cols, rows: rows)
     }
 
     func stop() {
         readTask?.cancel()
         readTask = nil
-        ptyManager.close()
+        session.close()
     }
 
     deinit { stop() }

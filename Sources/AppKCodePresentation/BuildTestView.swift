@@ -9,6 +9,7 @@ struct BuildTestView: View {
     @State private var isBuilding: Bool = false
     @State private var isTesting: Bool = false
     @State private var selectedTab: Int = 0
+    @State private var buildProblems: [ProblemItem] = []
 
     let buildTool: BuildTool?
     let projectRoot: URL?
@@ -44,6 +45,11 @@ struct BuildTestView: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
+                Button("Clean") { runClean() }
+                    .disabled(buildTool == nil || isBuilding)
+                Button("Rebuild") { runRebuild() }
+                    .buttonStyle(.bordered)
+                    .disabled(buildTool == nil || isBuilding)
                 Button("Build") { runBuild() }
                     .buttonStyle(.borderedProminent)
                     .disabled(buildTool == nil || isBuilding)
@@ -129,18 +135,66 @@ struct BuildTestView: View {
         guard let tool = buildTool, let root = projectRoot else { return }
         isBuilding = true
         buildOutput = "Building…\n"
+        buildProblems = []
+        Task {
+            let service = BuildTestService()
+            let stream = service.build(tool: tool, configuration: .debug, projectRoot: root)
+            for await event in stream {
+                await MainActor.run {
+                    switch event {
+                    case .started(let cmd): buildOutput += "$ \(cmd)\n"
+                    case .stdout(let s): buildOutput += s
+                    case .stderr(let s): buildOutput += s
+                    case .problem(let p): buildProblems.append(p)
+                    case .completed(let result):
+                        buildOutput += "\n[Build \(result.success ? "succeeded" : "failed")]"
+                        isBuilding = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func runClean() {
+        guard let tool = buildTool, let root = projectRoot else { return }
+        isBuilding = true
+        buildOutput = "Cleaning…\n"
         Task {
             let service = BuildTestService()
             do {
-                let result = try await service.runBuild(tool: tool, at: root)
+                let result = try await service.clean(tool: tool, projectRoot: root)
                 await MainActor.run {
                     buildOutput = result.output
                     isBuilding = false
                 }
             } catch {
                 await MainActor.run {
-                    buildOutput = "Build failed: \(error.localizedDescription)"
+                    buildOutput = "Clean failed: \(error.localizedDescription)"
                     isBuilding = false
+                }
+            }
+        }
+    }
+
+    private func runRebuild() {
+        guard let tool = buildTool, let root = projectRoot else { return }
+        isBuilding = true
+        buildOutput = "Rebuilding…\n"
+        buildProblems = []
+        Task {
+            let service = BuildTestService()
+            let stream = service.rebuild(tool: tool, configuration: .debug, projectRoot: root)
+            for await event in stream {
+                await MainActor.run {
+                    switch event {
+                    case .started(let cmd): buildOutput += "$ \(cmd)\n"
+                    case .stdout(let s): buildOutput += s
+                    case .stderr(let s): buildOutput += s
+                    case .problem(let p): buildProblems.append(p)
+                    case .completed(let result):
+                        buildOutput += "\n[Rebuild \(result.success ? "succeeded" : "failed")]"
+                        isBuilding = false
+                    }
                 }
             }
         }
@@ -151,16 +205,17 @@ struct BuildTestView: View {
         isTesting = true
         Task {
             let service = BuildTestService()
-            do {
-                let report = try await service.runTest(tool: tool, at: root)
+            let stream = service.runTests(tool: tool, configuration: .debug, projectRoot: root)
+            for await event in stream {
                 await MainActor.run {
-                    self.testReport = report
-                    self.isTesting = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.testReport = TestReport(passed: 0, failed: 1, skipped: 0, failures: [TestFailure(testName: "Error", reason: error.localizedDescription)])
-                    self.isTesting = false
+                    switch event {
+                    case .started: break
+                    case .stdout: break
+                    case .stderr: break
+                    case .completed(let report):
+                        self.testReport = report
+                        self.isTesting = false
+                    }
                 }
             }
         }
