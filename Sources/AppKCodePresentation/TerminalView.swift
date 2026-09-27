@@ -29,7 +29,7 @@ struct TerminalView: NSViewRepresentable {
         guard let textView = context.coordinator.textView else { return }
         if textView.string != viewModel.output {
             let oldLength = textView.string.count
-            textView.replaceCharacters(in: NSRange(location: oldLength, length: 0), with: viewModel.output.suffix(viewModel.output.count - oldLength))
+            textView.replaceCharacters(in: NSRange(location: oldLength, length: 0), with: String(viewModel.output.suffix(viewModel.output.count - oldLength)))
             textView.scrollToEndOfDocument(nil)
         }
     }

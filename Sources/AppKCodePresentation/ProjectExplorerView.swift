@@ -36,7 +36,9 @@ struct ProjectExplorerView: View {
         }
     }
 
-    private func fileTreeRow(_ entry: FileTreeEntry, depth: Int) -> some View {
+    @ViewBuilder
+    private func fileTreeRow(_ entry: FileTreeEntry, depth: Int) -> AnyView {
+        AnyView(
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
                 if entry.isDirectory {
@@ -84,6 +86,7 @@ struct ProjectExplorerView: View {
                 }
             }
         }
+        )
     }
 
     private func errorBanner(_ message: String) -> some View {

@@ -1,6 +1,7 @@
 import Foundation
 import AppKCodeShared
 import AppKCodeApplication
+import AppKCodeInfrastructure
 
 public final class ProjectExplorerViewModel: ObservableObject {
     @Published public var rootNode: FileTreeEntry?

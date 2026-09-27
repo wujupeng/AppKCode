@@ -35,7 +35,7 @@ let package = Package(
         ),
         .target(
             name: "AppKCodePresentation",
-            dependencies: ["AppKCodeShared", "AppKCodeApplication", "AppKCodeDomain"],
+            dependencies: ["AppKCodeShared", "AppKCodeApplication", "AppKCodeDomain", "AppKCodeInfrastructure"],
             path: "Sources/AppKCodePresentation",
             swiftSettings: x86_64Settings
         ),

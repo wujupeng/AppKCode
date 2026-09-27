@@ -67,7 +67,3 @@ public final class EditorViewModel: ObservableObject {
     }
 }
 
-extension Notification.Name {
-    static let appkEditorError = Notification.Name("AppKEditorError")
-    static let appkEditorJumpToLine = Notification.Name("AppKEditorJumpToLine")
-}

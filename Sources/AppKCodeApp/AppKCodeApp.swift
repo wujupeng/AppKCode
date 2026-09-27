@@ -58,10 +58,3 @@ struct AppKCodeCommands: Commands {
     }
 }
 
-extension Notification.Name {
-    static let appkOpenFolderRequested = Notification.Name("AppKOpenFolderRequested")
-    static let appkSaveRequested = Notification.Name("AppKSaveRequested")
-    static let appkSaveAsRequested = Notification.Name("AppKSaveAsRequested")
-    static let appkFileOpenRequested = Notification.Name("AppKFileOpenRequested")
-    static let appkCursorJumpRequested = Notification.Name("AppKCursorJumpRequested")
-}

@@ -1,5 +1,7 @@
 import SwiftUI
 import AppKCodeShared
+import AppKCodeDomain
+import AppKCodeInfrastructure
 
 struct BuildTestView: View {
     @State private var buildOutput: String = ""

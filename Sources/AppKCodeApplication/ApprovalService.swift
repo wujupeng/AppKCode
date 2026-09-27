@@ -110,7 +110,3 @@ public final class ApprovalService: AppApprovalService, @unchecked Sendable {
     }
 }
 
-extension Notification.Name {
-    static let appkApprovalRequested = Notification.Name("AppKApprovalRequested")
-    static let appkApprovalResolved = Notification.Name("AppKApprovalResolved")
-}
