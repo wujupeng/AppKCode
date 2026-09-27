@@ -19,7 +19,7 @@ struct TerminalView: NSViewRepresentable {
         textView.textColor = NSColor.textColor
         textView.backgroundColor = NSColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1.0)
         textView.isRichText = true
-        textView.allowsBackgroundColor = true
+        textView.drawsBackground = true
 
         scrollView.documentView = textView
         context.coordinator.textView = textView
