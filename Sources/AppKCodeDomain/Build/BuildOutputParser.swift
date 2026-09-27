@@ -39,7 +39,7 @@ public final class BuildOutputParser: @unchecked Sendable {
         guard let lineNum = Int(parts[1]) else { return nil }
         guard let col = Int(parts[2]) else { return nil }
 
-        let rest = parts[3...].joined(separator: ":")
+        let rest = parts[3...].joined(separator: ":").trimmingCharacters(in: .whitespaces)
         let severity: ProblemSeverity
         let message: String
 
@@ -75,7 +75,7 @@ public final class BuildOutputParser: @unchecked Sendable {
         guard let lineNum = Int(parts[1]) else { return nil }
         guard let col = Int(parts[2]) else { return nil }
 
-        let rest = parts[3...].joined(separator: ":")
+        let rest = parts[3...].joined(separator: ":").trimmingCharacters(in: .whitespaces)
         let severity: ProblemSeverity
         let message: String
 
