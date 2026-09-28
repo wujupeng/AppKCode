@@ -20,12 +20,12 @@ public struct ISO8601Timestamp: Sendable, Equatable, Hashable, Comparable, Codab
     }
 }
 
-public struct UserID: Sendable, Equatable, Hashable {
+public struct UserID: Sendable, Equatable, Hashable, Codable {
     public let rawValue: String
     public init(_ value: String) { self.rawValue = value }
 }
 
-public struct AgentSessionID: Sendable, Equatable, Hashable {
+public struct AgentSessionID: Sendable, Equatable, Hashable, Codable {
     public let rawValue: String
     public init() { self.rawValue = UUID().uuidString }
     public init(_ value: String) { self.rawValue = value }

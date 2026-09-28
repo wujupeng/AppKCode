@@ -13,7 +13,7 @@ public enum OperationKind: Sendable, Equatable {
     case gitDiff
 }
 
-public enum GitResetMode: Sendable, Equatable {
+public enum GitResetMode: String, Sendable, Equatable, Codable {
     case soft
     case mixed
     case hard

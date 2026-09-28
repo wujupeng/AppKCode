@@ -72,6 +72,7 @@ struct BottomPanelPlaceholderView: View {
             OutputPlaceholderView().tabItem { Label("Output", systemImage: "text.alignleft") }.tag(2)
             GitPlaceholderView().tabItem { Label("Git", systemImage: "arrow.triangle.branch") }.tag(3)
             TestsPlaceholderView().tabItem { Label("Tests", systemImage: "checkmark.circle") }.tag(4)
+            AuditTrailPlaceholderView().tabItem { Label("Audit", systemImage: "doc.text.magnifyingglass") }.tag(5)
         }
     }
 }
@@ -99,4 +100,9 @@ struct GitPlaceholderView: View {
 
 struct TestsPlaceholderView: View {
     var body: some View { Text("No tests run").foregroundColor(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity) }
+}
+struct AuditTrailPlaceholderView: View {
+    var body: some View {
+        AuditTrailView(records: [])
+    }
 }

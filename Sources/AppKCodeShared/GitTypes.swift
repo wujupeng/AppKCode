@@ -37,7 +37,7 @@ public struct SearchOptions: Sendable, Equatable {
     }
 }
 
-public struct DiffHunk: Sendable, Equatable {
+public struct DiffHunk: Sendable, Equatable, Codable {
     public let oldStart: Int
     public let oldEnd: Int
     public let newStart: Int
@@ -52,7 +52,7 @@ public struct DiffHunk: Sendable, Equatable {
     }
 }
 
-public struct DiffLine: Sendable, Equatable {
+public struct DiffLine: Sendable, Equatable, Codable {
     public let content: String
     public let changeType: DiffChangeType
     public init(content: String, changeType: DiffChangeType) {
@@ -61,7 +61,7 @@ public struct DiffLine: Sendable, Equatable {
     }
 }
 
-public enum DiffChangeType: Sendable, Equatable {
+public enum DiffChangeType: String, Sendable, Equatable, Codable {
     case context
     case added
     case removed
