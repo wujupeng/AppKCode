@@ -17,6 +17,8 @@ public enum ToolCategory: String, Sendable, Codable {
     case buildTest
     case context
     case search
+    case mcp
+    case skill
 }
 
 // MARK: - Tool Permission (TASK-003.2)

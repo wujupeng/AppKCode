@@ -73,6 +73,9 @@ struct BottomPanelPlaceholderView: View {
             GitPlaceholderView().tabItem { Label("Git", systemImage: "arrow.triangle.branch") }.tag(3)
             TestsPlaceholderView().tabItem { Label("Tests", systemImage: "checkmark.circle") }.tag(4)
             AuditTrailPlaceholderView().tabItem { Label("Audit", systemImage: "doc.text.magnifyingglass") }.tag(5)
+            MCPServersPlaceholderView().tabItem { Label("MCP", systemImage: "network") }.tag(6)
+            SkillsPlaceholderView().tabItem { Label("Skills", systemImage: "wand.and.stars") }.tag(7)
+            RulesPlaceholderView().tabItem { Label("Rules", systemImage: "checklist") }.tag(8)
         }
     }
 }
@@ -104,5 +107,25 @@ struct TestsPlaceholderView: View {
 struct AuditTrailPlaceholderView: View {
     var body: some View {
         AuditTrailView(records: [])
+    }
+}
+struct MCPServersPlaceholderView: View {
+    var body: some View {
+        MCPServerManagementView()
+    }
+}
+
+struct SkillsPlaceholderView: View {
+    var body: some View {
+        SkillRegistryView()
+    }
+}
+
+struct RulesPlaceholderView: View {
+    var body: some View {
+        TabView {
+            RuleEditorView().tabItem { Label("Rules", systemImage: "checklist") }
+            RuleConflictView().tabItem { Label("Conflicts", systemImage: "exclamationmark.triangle") }
+        }
     }
 }

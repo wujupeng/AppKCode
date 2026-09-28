@@ -98,6 +98,9 @@ struct AuditRecordRowView: View {
         case .gitRemote(let r): return r
         case .buildTarget(let t): return t
         case .testTarget(let t): return t
+        case .mcpServer(let id, let tool): return "mcp:\(id.rawValue):\(tool)"
+        case .skillInvocation(let id): return "skill:\(id.rawValue)"
+        case .ruleEvaluation(let id): return "rule:\(id.rawValue)"
         case .none: return "none"
         }
     }

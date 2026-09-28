@@ -13,6 +13,7 @@ public enum AgentRuntimeEvent: Sendable {
     case stepCompleted(ActionStep, ActionResult)
     case stepFailed(ActionStep, ActionResult)
     case sessionCompleted(AgentSessionID)
+    case ruleEnforced(stepID: ActionStepID, evaluation: RuleEvaluationResult)
 }
 
 // MARK: - Agent Runtime Orchestrator (TASK-022, H12)
@@ -25,6 +26,7 @@ public final class AgentRuntimeOrchestrator: @unchecked Sendable {
     private let auditService: AuditService
     private let contextAggregator: ContextAggregator
     private let toolRegistry: ToolRegistry
+    private let ruleEnforcer: RuleEnforcer?
 
     public init(
         planner: Planner,
@@ -33,7 +35,8 @@ public final class AgentRuntimeOrchestrator: @unchecked Sendable {
         authGate: AuthorizationGate,
         auditService: AuditService,
         contextAggregator: ContextAggregator,
-        toolRegistry: ToolRegistry
+        toolRegistry: ToolRegistry,
+        ruleEnforcer: RuleEnforcer? = nil
     ) {
         self.planner = planner
         self.sessionManager = sessionManager
@@ -42,6 +45,7 @@ public final class AgentRuntimeOrchestrator: @unchecked Sendable {
         self.auditService = auditService
         self.contextAggregator = contextAggregator
         self.toolRegistry = toolRegistry
+        self.ruleEnforcer = ruleEnforcer
     }
 
     public func runRequest(
@@ -59,8 +63,14 @@ public final class AgentRuntimeOrchestrator: @unchecked Sendable {
             context: context
         )
 
+        var effectivePlan = plan
+        if let enforcer = ruleEnforcer {
+            let enforced = enforcer.enforcePlan(plan, scope: .session)
+            effectivePlan.steps = enforced.steps.filter { $0.allowed }.map { $0.step }
+        }
+
         var results: [ActionResultSnapshot] = []
-        var currentPlan = plan
+        var currentPlan = effectivePlan
 
         while let step = currentPlan.nextExecutableStep() {
             let result = try await actionExecutor.execute(step, session: session)
@@ -112,7 +122,16 @@ public final class AgentRuntimeOrchestrator: @unchecked Sendable {
                     )
                     continuation.yield(.planCreated(plan))
 
-                    var currentPlan = plan
+                    var effectivePlan = plan
+                    if let enforcer = self.ruleEnforcer {
+                        let enforced = enforcer.enforcePlan(plan, scope: .session)
+                        for es in enforced.steps {
+                            continuation.yield(.ruleEnforced(stepID: es.step.id, evaluation: es.evaluation))
+                        }
+                        effectivePlan.steps = enforced.steps.filter { $0.allowed }.map { $0.step }
+                    }
+
+                    var currentPlan = effectivePlan
                     while let step = currentPlan.nextExecutableStep() {
                         continuation.yield(.stepProposing(step))
                         continuation.yield(.stepAwaitingApproval(step))

@@ -16,6 +16,9 @@ public enum AuditTarget: Sendable, Codable, Equatable {
     case gitRemote(String)
     case buildTarget(String)
     case testTarget(String)
+    case mcpServer(MCPServerID, tool: String)
+    case skillInvocation(SkillID)
+    case ruleEvaluation(RuleID)
     case none
 }
 
@@ -98,5 +101,41 @@ public struct AuditFilter: Sendable, Codable, Equatable {
         self.timeRange = timeRange
         self.tool = tool
         self.result = result
+    }
+}
+// MARK: - M8 Audit Event Kind (TASK-005.2, H18)
+
+public enum M8AuditEventKind: String, Sendable, Codable, Equatable {
+    case mcpServerConnected
+    case mcpServerDisconnected
+    case mcpToolInvoked
+    case mcpToolDiscoveryCompleted
+    case skillRegistered
+    case skillInvoked
+    case skillCompleted
+    case ruleLoaded
+    case ruleEvaluated
+    case ruleConflictDetected
+    case ruleEnforced
+}
+
+// MARK: - M8 Audit Event (TASK-005.2, H18)
+
+public struct M8AuditEvent: Sendable, Codable, Equatable {
+    public let kind: M8AuditEventKind
+    public let sessionID: AgentSessionID
+    public let timestamp: ISO8601Timestamp
+    public let detail: AnyCodableValue
+
+    public init(
+        kind: M8AuditEventKind,
+        sessionID: AgentSessionID,
+        timestamp: ISO8601Timestamp = ISO8601Timestamp(),
+        detail: AnyCodableValue
+    ) {
+        self.kind = kind
+        self.sessionID = sessionID
+        self.timestamp = timestamp
+        self.detail = detail
     }
 }
