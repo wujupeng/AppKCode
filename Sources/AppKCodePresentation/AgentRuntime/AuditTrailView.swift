@@ -101,6 +101,11 @@ struct AuditRecordRowView: View {
         case .mcpServer(let id, let tool): return "mcp:\(id.rawValue):\(tool)"
         case .skillInvocation(let id): return "skill:\(id.rawValue)"
         case .ruleEvaluation(let id): return "rule:\(id.rawValue)"
+        case .extension_(let id, let action): return "ext:\(id.rawValue):\(action.rawValue)"
+        case .adapter(let id, let action): return "adapter:\(id.rawValue):\(action.rawValue)"
+        case .capability(let capID, let extID): return "cap:\(capID.rawValue):\(extID.rawValue)"
+        case .contractNegotiation(let id): return "contract:\(id.rawValue)"
+        case .permissionDecision(let id): return "perm:\(id.rawValue)"
         case .none: return "none"
         }
     }

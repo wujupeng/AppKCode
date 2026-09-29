@@ -19,6 +19,8 @@ public enum ToolCategory: String, Sendable, Codable {
     case search
     case mcp
     case skill
+    case extension_
+    case adapter
 }
 
 // MARK: - Tool Permission (TASK-003.2)

@@ -19,7 +19,35 @@ public enum AuditTarget: Sendable, Codable, Equatable {
     case mcpServer(MCPServerID, tool: String)
     case skillInvocation(SkillID)
     case ruleEvaluation(RuleID)
+    case extension_(ExtensionID, action: ExtensionAuditAction)
+    case adapter(AdapterID, action: AdapterAuditAction)
+    case capability(CapabilityID, extensionID: ExtensionID)
+    case contractNegotiation(ExtensionID)
+    case permissionDecision(ExtensionID)
     case none
+}
+
+// MARK: - Extension Audit Action (TASK-008.2, H23)
+
+public enum ExtensionAuditAction: String, Sendable, Codable, Hashable {
+    case loading
+    case loaded
+    case enabled
+    case disabled
+    case unloaded
+    case invoked
+    case failed
+    case incompatible
+}
+
+// MARK: - Adapter Audit Action (TASK-008.2, H23)
+
+public enum AdapterAuditAction: String, Sendable, Codable, Hashable {
+    case instantiated
+    case disposed
+    case apiCalled
+    case degraded
+    case boundaryViolation
 }
 
 // MARK: - Audit Result Summary (TASK-005.3)
@@ -135,6 +163,56 @@ public struct M8AuditEvent: Sendable, Codable, Equatable {
     ) {
         self.kind = kind
         self.sessionID = sessionID
+        self.timestamp = timestamp
+        self.detail = detail
+    }
+}
+// MARK: - M9 Audit Event Kind (TASK-008.3, H23)
+
+public enum M9AuditEventKind: String, Sendable, Codable, Equatable {
+    case extensionManifestLoaded
+    case extensionEnabled
+    case extensionDisabled
+    case extensionUnloaded
+    case extensionInvoked
+    case extensionFailed
+    case extensionIncompatible
+    case adapterInstantiated
+    case adapterDisposed
+    case adapterAPICalled
+    case adapterDegraded
+    case adapterBoundaryViolation
+    case capabilityInvoked
+    case capabilityDenied
+    case contractNegotiated
+    case contractNegotiationFailed
+    case permissionRequested
+    case permissionGranted
+    case permissionDenied
+    case permissionRevoked
+    case versionNegotiationSucceeded
+    case versionNegotiationFailed
+}
+
+// MARK: - M9 Audit Event (TASK-008.3, H23)
+
+public struct M9AuditEvent: Sendable, Codable, Equatable {
+    public let kind: M9AuditEventKind
+    public let sessionID: AgentSessionID?
+    public let extensionID: ExtensionID?
+    public let timestamp: ISO8601Timestamp
+    public let detail: AnyCodableValue
+
+    public init(
+        kind: M9AuditEventKind,
+        sessionID: AgentSessionID? = nil,
+        extensionID: ExtensionID? = nil,
+        timestamp: ISO8601Timestamp = ISO8601Timestamp(),
+        detail: AnyCodableValue
+    ) {
+        self.kind = kind
+        self.sessionID = sessionID
+        self.extensionID = extensionID
         self.timestamp = timestamp
         self.detail = detail
     }

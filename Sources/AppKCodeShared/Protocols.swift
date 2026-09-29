@@ -33,8 +33,8 @@ public protocol DomainCodebaseIndex: Sendable {
 }
 
 public protocol DomainContractRegistry: Sendable {
-    func register(_ contract: CompatibilityContract) throws
-    func lookup(_ contractID: String) -> CompatibilityContract?
+    func register(_ contract: LegacyCompatibilityContract) throws
+    func lookup(_ contractID: String) -> LegacyCompatibilityContract?
 }
 
 public protocol DomainLSPHost: Sendable {
@@ -72,18 +72,18 @@ public protocol InfraModelClient: Sendable {
     func chatCompletion(_ request: InferenceRequest, endpoint: ModelEndpoint) async throws -> InferenceResponse
 }
 
-public struct CompatibilityContract: Sendable, Equatable {
+public struct LegacyCompatibilityContract: Sendable, Equatable {
     public let contractID: String
-    public let apiSurface: APISurface
-    public let degradationStrategy: DegradationStrategy
-    public init(contractID: String, apiSurface: APISurface, degradationStrategy: DegradationStrategy) {
+    public let apiSurface: LegacyAPISurface
+    public let degradationStrategy: LegacyDegradationStrategy
+    public init(contractID: String, apiSurface: LegacyAPISurface, degradationStrategy: LegacyDegradationStrategy) {
         self.contractID = contractID
         self.apiSurface = apiSurface
         self.degradationStrategy = degradationStrategy
     }
 }
 
-public enum APISurface: Sendable, Equatable {
+public enum LegacyAPISurface: Sendable, Equatable {
     case native
     case vscode
     case jetbrains
@@ -91,7 +91,7 @@ public enum APISurface: Sendable, Equatable {
     case mcp
 }
 
-public enum DegradationStrategy: Sendable, Equatable {
+public enum LegacyDegradationStrategy: Sendable, Equatable {
     case unsupported
     case stub
     case fallback(String)

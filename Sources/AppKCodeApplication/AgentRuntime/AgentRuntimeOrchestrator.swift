@@ -27,6 +27,7 @@ public final class AgentRuntimeOrchestrator: @unchecked Sendable {
     private let contextAggregator: ContextAggregator
     private let toolRegistry: ToolRegistry
     private let ruleEnforcer: RuleEnforcer?
+    private let capabilityAppService: CapabilityAppService?
 
     public init(
         planner: Planner,
@@ -36,7 +37,8 @@ public final class AgentRuntimeOrchestrator: @unchecked Sendable {
         auditService: AuditService,
         contextAggregator: ContextAggregator,
         toolRegistry: ToolRegistry,
-        ruleEnforcer: RuleEnforcer? = nil
+        ruleEnforcer: RuleEnforcer? = nil,
+        capabilityAppService: CapabilityAppService? = nil
     ) {
         self.planner = planner
         self.sessionManager = sessionManager
@@ -46,6 +48,7 @@ public final class AgentRuntimeOrchestrator: @unchecked Sendable {
         self.contextAggregator = contextAggregator
         self.toolRegistry = toolRegistry
         self.ruleEnforcer = ruleEnforcer
+        self.capabilityAppService = capabilityAppService
     }
 
     public func runRequest(
