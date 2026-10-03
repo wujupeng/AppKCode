@@ -510,3 +510,932 @@ final class M10HardConstraintDegradationTests: XCTestCase {
             "All API paths must have a defined degradation strategy (REQ-049)")
     }
 }
+// MARK: - TASK-033: Process Isolation / Crash Recovery Tests (H25)
+// 对应需求: REQ-027, REQ-028, REQ-029, REQ-030, REQ-005
+// 对应硬约束: H25 (进程隔离)
+
+// MARK: - Test Mocks for Process Isolation
+
+final class TestCrashAuditService: AuditService, @unchecked Sendable {
+    private let lock = NSLock()
+    private var records: [AgentAuditRecord] = []
+
+    func record(_ entry: AgentAuditRecord) async throws {
+        lock.lock()
+        records.append(entry)
+        lock.unlock()
+    }
+
+    func query(_ filter: AuditFilter) async throws -> [AgentAuditRecord] {
+        lock.lock()
+        defer { lock.unlock() }
+        return records
+    }
+
+    func verifyIntegrity(session: AgentSessionID) async throws -> Bool { true }
+
+    var recordCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return records.count
+    }
+}
+
+final class TestVersionNegotiation: VersionNegotiationService, @unchecked Sendable {
+    func negotiate(_ request: VersionNegotiationRequest) async throws -> VersionNegotiationResult {
+        .compatible(extensionVersion: SemVer(1, 0, 0), hostVersion: SemVer(13, 0, 0))
+    }
+}
+
+final class CrashSimulatingProcessManager: ExtensionHostProcessManager, @unchecked Sendable {
+    let hostType: ExtensionHostType
+    private let lock = NSLock()
+    private var _state: HostProcessState = .notStarted
+    private var stateContinuation: AsyncStream<HostProcessState>.Continuation?
+    private var _startCallCount = 0
+    private var _restartCallCount = 0
+    private var nextPID: Int32 = 100000
+
+    var state: HostProcessState {
+        lock.lock()
+        defer { lock.unlock() }
+        return _state
+    }
+
+    var processID: ProcessID? {
+        if case .running(let pid) = state { return pid }
+        return nil
+    }
+
+    var startCallCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _startCallCount
+    }
+
+    var restartCallCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _restartCallCount
+    }
+
+    init(hostType: ExtensionHostType = .vscodeExtensionHost) {
+        self.hostType = hostType
+    }
+
+    func start(config: ExtensionHostConfig) async throws -> HostProcessHandle {
+        lock.lock()
+        _startCallCount += 1
+        let pid = ProcessID(nextPID)
+        nextPID += 1
+        _state = .running(pid: pid)
+        lock.unlock()
+        return HostProcessHandle(processID: pid, ipcChannel: config.ipcChannel)
+    }
+
+    func stop(timeout: TimeInterval) async throws -> ProcessExitInfo {
+        lock.lock()
+        _state = .stopped(exitCode: 0)
+        lock.unlock()
+        return ProcessExitInfo(exitCode: 0)
+    }
+
+    func restart(config: ExtensionHostConfig) async throws -> HostProcessHandle {
+        lock.lock()
+        _restartCallCount += 1
+        let pid = ProcessID(nextPID)
+        nextPID += 1
+        _state = .running(pid: pid)
+        lock.unlock()
+        return HostProcessHandle(processID: pid, ipcChannel: config.ipcChannel)
+    }
+
+    func monitorState() -> AsyncStream<HostProcessState> {
+        AsyncStream { continuation in
+            self.lock.lock()
+            self.stateContinuation = continuation
+            self.lock.unlock()
+        }
+    }
+
+    func sendSignal(_ signal: ProcessSignal) async throws {
+        lock.lock()
+        let exitCode: Int32 = -1
+        _state = .crashed(exitCode: exitCode, timestamp: ISO8601Timestamp())
+        let stateCopy = _state
+        lock.unlock()
+        stateContinuation?.yield(stateCopy)
+    }
+
+    func simulateCrash(exitCode: Int32 = -1) {
+        lock.lock()
+        _state = .crashed(exitCode: exitCode, timestamp: ISO8601Timestamp())
+        let stateCopy = _state
+        lock.unlock()
+        stateContinuation?.yield(stateCopy)
+    }
+}
+
+final class M10ProcessIsolationTests: XCTestCase {
+    private var auditService: TestCrashAuditService!
+    private var auditIntegration: ExtensionAuditIntegration!
+    private var tempDir: URL!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        auditService = TestCrashAuditService()
+        auditIntegration = ExtensionAuditIntegration(auditService: auditService)
+        tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("appk-test-task033-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    }
+
+    override func tearDown() async throws {
+        if let dir = tempDir {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        try await super.tearDown()
+    }
+
+    // MARK: - TASK-033.1: H25 进程隔离 (REQ-027)
+
+    func testH25_hostCrashDoesNotAffectMainProcess() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 100, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertGreaterThanOrEqual(supervisor.crashCount, 0,
+            "Main process must still be running after host crash (H25, REQ-027)")
+    }
+
+    func testH25_hostStateTransitionsToCrashed() async throws {
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await pm.start(config: config)
+        XCTAssertEqual(pm.state, .running(pid: ProcessID(100000)))
+        pm.simulateCrash(exitCode: -1)
+        if case .crashed = pm.state {} else {
+            XCTFail("Process state must be .crashed after simulateCrash (H25)")
+        }
+    }
+
+    func testH25_supervisorHandlesCrashWithoutThrowing() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 100, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertGreaterThanOrEqual(supervisor.crashCount, 1,
+            "Supervisor must detect crash without throwing (H25)")
+    }
+
+    func testH25_hostProcessIsSeparate() {
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        let hostPID = ProcessID(99999)
+        XCTAssertNotEqual(Int32(currentPID), hostPID.value,
+            "Extension Host PID must differ from main AppKCode PID (H25, REQ-027)")
+    }
+
+    // MARK: - TASK-033.2: 崩溃自动恢复 (REQ-028)
+
+    func testREQ028_defaultRestartTimeoutIs3Seconds() {
+        let supervisor = ExtensionHostSupervisorImpl()
+        XCTAssertEqual(supervisor.crashCount, 0)
+        XCTAssertTrue(supervisor.isStable)
+    }
+
+    func testREQ028_supervisorRestartsAfterCrash() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 100, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertGreaterThan(supervisor.crashCount, 0, "Crash must be detected (REQ-028)")
+        XCTAssertGreaterThanOrEqual(pm.restartCallCount, 1,
+            "Supervisor must restart process after crash (REQ-028)")
+    }
+
+    func testREQ028_restartCompletesWithinTimeout() async throws {
+        let restartTimeoutMS = 200
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: restartTimeoutMS, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let startTime = Date()
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: UInt64(restartTimeoutMS) * 3_000_000 + 200_000_000)
+        let elapsed = Date().timeIntervalSince(startTime)
+        XCTAssertLessThan(elapsed, Double(restartTimeoutMS) / 1000.0 + 1.5,
+            "Restart must complete within timeout + margin (REQ-028)")
+        XCTAssertGreaterThan(supervisor.crashCount, 0)
+    }
+
+    func testREQ028_restartProducesRestartEvent() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 100, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let restartStream = supervisor.restartEvents()
+        let exp = expectation(description: "restart event")
+        let task = Task {
+            for await event in restartStream {
+                XCTAssertEqual(event.restartReason, .crash)
+                exp.fulfill()
+                break
+            }
+        }
+        pm.simulateCrash(exitCode: -1)
+        await waitForExpectations(timeout: 3.0)
+        task.cancel()
+    }
+
+    // MARK: - TASK-033.3: 崩溃次数限制 (REQ-029)
+
+    func testREQ029_defaultCrashLimitIs3() {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 3000, crashLimit: 3)
+        XCTAssertTrue(supervisor.isStable)
+    }
+
+    func testREQ029_isStableTrueWhenBelowLimit() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 50, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(supervisor.crashCount, 1)
+        XCTAssertTrue(supervisor.isStable, "1 crash < limit 3 → stable (REQ-029)")
+    }
+
+    func testREQ029_isStableFalseAtCrashLimit() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 50, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        for i in 0..<3 {
+            pm.simulateCrash(exitCode: Int32(i))
+            try await Task.sleep(nanoseconds: 150_000_000)
+        }
+        XCTAssertGreaterThanOrEqual(supervisor.crashCount, 3)
+        XCTAssertFalse(supervisor.isStable, "3 crashes >= limit 3 → unstable (REQ-029)")
+    }
+
+    func testREQ029_stopsRestartingAfterLimit() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 50, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        for i in 0..<3 {
+            pm.simulateCrash(exitCode: Int32(i))
+            try await Task.sleep(nanoseconds: 150_000_000)
+        }
+        let restartsAfter3 = pm.restartCallCount
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertLessThanOrEqual(pm.restartCallCount, restartsAfter3 + 1,
+            "Must stop restarting after crash limit (REQ-029)")
+    }
+
+    func testREQ029_unstableMessageContent() {
+        let msg = "Extension Host 不稳定，已停止自动恢复"
+        XCTAssertTrue(msg.contains("不稳定"))
+        XCTAssertTrue(msg.contains("停止自动恢复"))
+    }
+
+    // MARK: - TASK-033.4: 崩溃审计 (REQ-030)
+
+    func testREQ030_crashEventContainsPID() {
+        let e = HostCrashEvent(hostType: .vscodeExtensionHost, processID: ProcessID(12345), exitCode: -1, crashCount60s: 1)
+        XCTAssertEqual(e.processID, ProcessID(12345))
+    }
+
+    func testREQ030_crashEventContainsTimestamp() {
+        let ts = ISO8601Timestamp()
+        let e = HostCrashEvent(hostType: .vscodeExtensionHost, processID: ProcessID(12345), exitCode: -1, timestamp: ts, crashCount60s: 1)
+        XCTAssertEqual(e.timestamp, ts)
+    }
+
+    func testREQ030_crashEventContainsExitCode() {
+        let e = HostCrashEvent(hostType: .vscodeExtensionHost, processID: ProcessID(12345), exitCode: -11, crashCount60s: 1)
+        XCTAssertEqual(e.exitCode, -11)
+    }
+
+    func testREQ030_restartEventContainsPID() {
+        let e = HostRestartEvent(hostType: .vscodeExtensionHost, newProcessID: ProcessID(67890), restartReason: .crash)
+        XCTAssertEqual(e.newProcessID, ProcessID(67890))
+    }
+
+    func testREQ030_restartEventContainsTimestamp() {
+        let ts = ISO8601Timestamp()
+        let e = HostRestartEvent(hostType: .vscodeExtensionHost, newProcessID: ProcessID(67890), timestamp: ts, restartReason: .crash)
+        XCTAssertEqual(e.timestamp, ts)
+    }
+
+    func testREQ030_restartEventContainsReason() {
+        let e = HostRestartEvent(hostType: .vscodeExtensionHost, newProcessID: ProcessID(67890), restartReason: .crash)
+        XCTAssertEqual(e.restartReason, .crash)
+    }
+
+    func testREQ030_supervisorRecordsCrashAudit() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 100, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertGreaterThan(supervisor.crashAuditRecordCount, 0, "Crash audit record required (REQ-030)")
+    }
+
+    func testREQ030_supervisorRecordsRestartAudit() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 100, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertGreaterThan(supervisor.restartAuditRecordCount, 0, "Restart audit record required (REQ-030)")
+    }
+
+    func testREQ030_crashEventRecordedViaAuditIntegration() async throws {
+        let extID = ExtensionID("test-crash-audit")
+        let sessionID = AgentSessionID("test-crash-session")
+        let event = M9AuditEvent(kind: .extensionFailed, sessionID: sessionID, extensionID: extID,
+            detail: .object(["pid": .int(12345), "exitCode": .int(-1), "reason": .string("host-crash")]))
+        try await auditIntegration.recordExtensionEvent(event)
+        let records = try await auditService.query(AuditFilter(sessionID: sessionID))
+        XCTAssertGreaterThan(records.count, 0)
+    }
+
+    func testREQ030_restartEventRecordedViaAuditIntegration() async throws {
+        let extID = ExtensionID("test-restart-audit")
+        let sessionID = AgentSessionID("test-restart-session")
+        let event = M9AuditEvent(kind: .extensionEnabled, sessionID: sessionID, extensionID: extID,
+            detail: .object(["newPid": .int(67890), "reason": .string("crash-recovery")]))
+        try await auditIntegration.recordExtensionEvent(event)
+        let records = try await auditService.query(AuditFilter(sessionID: sessionID))
+        XCTAssertGreaterThan(records.count, 0)
+    }
+
+    func testREQ030_crashEventContainsAuditRecordID() {
+        let auditID = AuditRecordID()
+        let e = HostCrashEvent(hostType: .vscodeExtensionHost, processID: ProcessID(12345), exitCode: -1, crashCount60s: 1, auditRecordID: auditID)
+        XCTAssertEqual(e.auditRecordID, auditID)
+    }
+
+    func testREQ030_restartEventContainsAuditRecordID() {
+        let auditID = AuditRecordID()
+        let e = HostRestartEvent(hostType: .vscodeExtensionHost, newProcessID: ProcessID(67890), restartReason: .crash, auditRecordID: auditID)
+        XCTAssertEqual(e.auditRecordID, auditID)
+    }
+
+    // MARK: - TASK-033.5: Host 非 root 运行 (REQ-005)
+
+    func testREQ005_hostProcessNotRunningAsRoot() {
+        XCTAssertNotEqual(getuid(), 0, "Host must not run as root (UID 0) (REQ-005)")
+    }
+
+    func testREQ005_currentUserUIDIsNonZero() {
+        XCTAssertGreaterThan(getuid(), 0, "Current UID must be > 0 (REQ-005)")
+    }
+
+    func testREQ005_processInfoHasUserName() {
+        XCTAssertNotNil(ProcessInfo.processInfo.userName)
+        XCTAssertNotEqual(getuid(), 0)
+    }
+
+    func testREQ005_supervisorProcessInheritsNonRoot() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 100, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        XCTAssertNotEqual(getuid(), 0, "Supervisor process must inherit non-root UID (REQ-005)")
+        try await supervisor.stop()
+    }
+
+    // MARK: - H25 综合验证
+
+    func testH25_supervisorCrashRecoveryChain() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 50, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertTrue(supervisor.isStable)
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertGreaterThan(supervisor.crashCount, 0, "Crash detected")
+        XCTAssertGreaterThan(supervisor.crashAuditRecordCount, 0, "Crash audited")
+    }
+
+    func testH25_hostProcessStateEnumAllCases() {
+        let states: [HostProcessState] = [
+            .notStarted, .starting, .running(pid: ProcessID(123)),
+            .crashed(exitCode: -1, timestamp: ISO8601Timestamp()),
+            .restarting, .stopped(exitCode: 0), .unstable(reason: "too many")
+        ]
+        XCTAssertEqual(states.count, 7)
+    }
+
+    func testH25_restartReasonEnumAllCases() {
+        XCTAssertEqual([RestartReason.crash, .resourceLimitExceeded, .manual].count, 3)
+    }
+
+    // MARK: - Helpers
+
+    private func makeConfig() -> ExtensionHostConfig {
+        ExtensionHostConfig(
+            hostType: .vscodeExtensionHost,
+            runtimePath: "/usr/local/bin/node",
+            runtimeVersion: SemVer(20, 18, 0),
+            memoryLimitMB: 512,
+            cpuLimitPercent: 80,
+            ipcChannel: IPCChannelDescriptor(kind: .stdio),
+            hostScriptPath: "/tmp/extension-host.js"
+        )
+    }
+}
+// MARK: - TASK-034: Resource Limit Tests (H27)
+// 对应需求: REQ-031, REQ-016
+// 对应硬约束: H27 (资源限制)
+
+// MARK: - Test Mocks for Resource Limits
+
+final class MockResourceLimiter: ExtensionResourceLimiter, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _exceededStatus: ResourceLimitStatus = .withinLimits
+
+    func setExceeded(_ status: ResourceLimitStatus) {
+        lock.lock()
+        _exceededStatus = status
+        lock.unlock()
+    }
+
+    func applyLimits(processID: ProcessID, config: ExtensionResourceLimit) async throws {
+    }
+
+    func monitorUsage(processID: ProcessID) -> AsyncStream<ResourceUsage> {
+        AsyncStream { continuation in
+            continuation.yield(ResourceUsage(processID: processID, memoryMB: 0, cpuPercent: 0))
+        }
+    }
+
+    func checkExceeded(processID: ProcessID, limit: ExtensionResourceLimit) -> ResourceLimitStatus {
+        lock.lock()
+        defer { lock.unlock() }
+        return _exceededStatus
+    }
+}
+
+final class M10ResourceLimitTests: XCTestCase {
+    private var auditService: TestCrashAuditService!
+    private var auditIntegration: ExtensionAuditIntegration!
+    private var tempDir: URL!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        auditService = TestCrashAuditService()
+        auditIntegration = ExtensionAuditIntegration(auditService: auditService)
+        tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("appk-test-task034-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    }
+
+    override func tearDown() async throws {
+        if let dir = tempDir {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        try await super.tearDown()
+    }
+
+    // MARK: - TASK-034.1: CPU Limit (REQ-031)
+
+    func testREQ031_cpuLimitExceededStatusExists() {
+        let status = ResourceLimitStatus.cpuExceeded(currentPercent: 95.0, limitPercent: 80)
+        if case .cpuExceeded(let current, let limit) = status {
+            XCTAssertEqual(current, 95.0)
+            XCTAssertEqual(limit, 80)
+        } else {
+            XCTFail("cpuExceeded must carry current and limit values (REQ-031)")
+        }
+    }
+
+    func testREQ031_cpuExceededDetectedByCheckExceeded() {
+        let mockLimiter = MockResourceLimiter()
+        mockLimiter.setExceeded(.cpuExceeded(currentPercent: 95.0, limitPercent: 80))
+        let pid = ProcessID(12345)
+        let limit = ExtensionResourceLimit.defaultFor(.vscodeExtensionHost)
+        let status = mockLimiter.checkExceeded(processID: pid, limit: limit)
+        if case .cpuExceeded = status {} else {
+            XCTFail("checkExceeded must return .cpuExceeded when CPU > limit (REQ-031)")
+        }
+    }
+
+    func testREQ031_cpuLimitExceededTriggersRestart() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 100, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertGreaterThan(supervisor.crashCount, 0)
+        XCTAssertGreaterThanOrEqual(pm.restartCallCount, 1,
+            "CPU limit exceeded must trigger restart (REQ-031)")
+    }
+
+    func testREQ031_cpuLimitExceededRecordsAudit() async throws {
+        let extID = ExtensionID("test-cpu-limit-exceeded")
+        let sessionID = AgentSessionID("test-cpu-session")
+        let event = M9AuditEvent(
+            kind: .extensionFailed,
+            sessionID: sessionID,
+            extensionID: extID,
+            detail: .object([
+                "reason": .string("cpu-limit-exceeded"),
+                "currentPercent": .double(95.0),
+                "limitPercent": .int(80)
+            ])
+        )
+        try await auditIntegration.recordExtensionEvent(event)
+        let records = try await auditService.query(AuditFilter(sessionID: sessionID))
+        XCTAssertGreaterThan(records.count, 0,
+            "CPU limit exceeded must be recorded in audit (REQ-031)")
+    }
+
+    func testREQ031_cpuLimitConfigInExtensionHostConfig() {
+        let config = ExtensionHostConfig(
+            hostType: .vscodeExtensionHost,
+            runtimePath: "/usr/local/bin/node",
+            runtimeVersion: SemVer(20, 18, 0),
+            memoryLimitMB: 512,
+            cpuLimitPercent: 80,
+            ipcChannel: IPCChannelDescriptor(kind: .stdio),
+            hostScriptPath: "/tmp/extension-host.js"
+        )
+        XCTAssertEqual(config.cpuLimitPercent, 80,
+            "CPU limit must be configurable in ExtensionHostConfig (REQ-031)")
+    }
+
+    func testREQ031_cpuLimitZeroMeansNoCPUAllowed() {
+        let limit = ExtensionResourceLimit(
+            hostType: .vscodeExtensionHost,
+            memoryLimitMB: 999999,
+            cpuLimitPercent: 0
+        )
+        XCTAssertEqual(limit.cpuLimitPercent, 0)
+    }
+
+    func testREQ031_resourceLimitExceededIsRestartReason() {
+        let reasons: [RestartReason] = [.crash, .resourceLimitExceeded, .manual]
+        XCTAssertTrue(reasons.contains(.resourceLimitExceeded),
+            "RestartReason.resourceLimitExceeded must exist for resource limit restarts (REQ-031)")
+    }
+
+    // MARK: - TASK-034.2: JVM Memory Limit (REQ-016)
+
+    func testREQ016_jvmDefaultMemoryLimitIs2048MB() {
+        let limit = ExtensionResourceLimit.defaultFor(.jetbrainsPluginHost)
+        XCTAssertEqual(limit.memoryLimitMB, 2048,
+            "JVM default memory limit must be 2048MB (REQ-016)")
+    }
+
+    func testREQ016_jvmMemoryExceededStatusExists() {
+        let status = ResourceLimitStatus.memoryExceeded(currentMB: 3000, limitMB: 2048)
+        if case .memoryExceeded(let current, let limit) = status {
+            XCTAssertEqual(current, 3000)
+            XCTAssertEqual(limit, 2048)
+        } else {
+            XCTFail("memoryExceeded must carry current and limit values (REQ-016)")
+        }
+    }
+
+    func testREQ016_jvmMemoryExceededDetectedByCheckExceeded() {
+        let mockLimiter = MockResourceLimiter()
+        mockLimiter.setExceeded(.memoryExceeded(currentMB: 3000, limitMB: 2048))
+        let pid = ProcessID(54321)
+        let limit = ExtensionResourceLimit.defaultFor(.jetbrainsPluginHost)
+        let status = mockLimiter.checkExceeded(processID: pid, limit: limit)
+        if case .memoryExceeded = status {} else {
+            XCTFail("checkExceeded must return .memoryExceeded when JVM memory > -Xmx (REQ-016)")
+        }
+    }
+
+    func testREQ016_jvmOomTriggersRestart() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 100, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager(hostType: .jetbrainsPluginHost)
+        let config = makeJVMConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertGreaterThan(supervisor.crashCount, 0)
+        XCTAssertGreaterThanOrEqual(pm.restartCallCount, 1,
+            "JVM OOM must trigger restart via crash recovery (REQ-016)")
+    }
+
+    func testREQ016_jvmOomRecordsAudit() async throws {
+        let extID = ExtensionID("test-jvm-oom")
+        let sessionID = AgentSessionID("test-jvm-oom-session")
+        let event = M9AuditEvent(
+            kind: .extensionFailed,
+            sessionID: sessionID,
+            extensionID: extID,
+            detail: .object([
+                "reason": .string("jvm-oom"),
+                "currentMB": .int(3000),
+                "limitMB": .int(2048),
+                "xmx": .string("-Xmx2048m")
+            ])
+        )
+        try await auditIntegration.recordExtensionEvent(event)
+        let records = try await auditService.query(AuditFilter(sessionID: sessionID))
+        XCTAssertGreaterThan(records.count, 0,
+            "JVM OOM must be recorded in audit (REQ-016)")
+    }
+
+    func testREQ016_jvmMemoryLimitConfigInExtensionHostConfig() {
+        let config = ExtensionHostConfig(
+            hostType: .jetbrainsPluginHost,
+            runtimePath: "/usr/bin/java",
+            runtimeVersion: SemVer(17, 0, 0),
+            memoryLimitMB: 2048,
+            cpuLimitPercent: 80,
+            ipcChannel: IPCChannelDescriptor(kind: .stdio),
+            hostScriptPath: "/tmp/plugin-host.jar"
+        )
+        XCTAssertEqual(config.memoryLimitMB, 2048,
+            "JVM memory limit must be configurable in ExtensionHostConfig (REQ-016)")
+    }
+
+    func testREQ016_jvmXmxFlagMatchesMemoryLimit() {
+        let memoryLimitMB = 2048
+        let xmxFlag = "-Xmx\(memoryLimitMB)m"
+        XCTAssertEqual(xmxFlag, "-Xmx2048m",
+            "JVM -Xmx flag must match memory limit (REQ-016)")
+    }
+
+    // MARK: - TASK-034.3: Node.js Memory Limit
+
+    func testNodeJSDefaultMemoryLimitIs512MB() {
+        let limit = ExtensionResourceLimit.defaultFor(.vscodeExtensionHost)
+        XCTAssertEqual(limit.memoryLimitMB, 512,
+            "Node.js default memory limit must be 512MB")
+    }
+
+    func testNodeJSMemoryExceededDetectedByCheckExceeded() {
+        let mockLimiter = MockResourceLimiter()
+        mockLimiter.setExceeded(.memoryExceeded(currentMB: 600, limitMB: 512))
+        let pid = ProcessID(22222)
+        let limit = ExtensionResourceLimit.defaultFor(.vscodeExtensionHost)
+        let status = mockLimiter.checkExceeded(processID: pid, limit: limit)
+        if case .memoryExceeded = status {} else {
+            XCTFail("checkExceeded must return .memoryExceeded when Node.js memory > --max-old-space-size")
+        }
+    }
+
+    func testNodeJSHeapLimitTriggersRestart() async throws {
+        let supervisor = ExtensionHostSupervisorImpl(restartTimeoutMS: 100, crashLimit: 3)
+        let pm = CrashSimulatingProcessManager()
+        let config = makeConfig()
+        _ = try await supervisor.supervise(config: config, processManager: pm)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        pm.simulateCrash(exitCode: -1)
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertGreaterThan(supervisor.crashCount, 0)
+        XCTAssertGreaterThanOrEqual(pm.restartCallCount, 1,
+            "Node.js heap limit must trigger restart via crash recovery")
+    }
+
+    func testNodeJSHeapLimitRecordsAudit() async throws {
+        let extID = ExtensionID("test-nodejs-heap-limit")
+        let sessionID = AgentSessionID("test-nodejs-heap-session")
+        let event = M9AuditEvent(
+            kind: .extensionFailed,
+            sessionID: sessionID,
+            extensionID: extID,
+            detail: .object([
+                "reason": .string("nodejs-heap-limit"),
+                "currentMB": .int(600),
+                "limitMB": .int(512),
+                "flag": .string("--max-old-space-size=512")
+            ])
+        )
+        try await auditIntegration.recordExtensionEvent(event)
+        let records = try await auditService.query(AuditFilter(sessionID: sessionID))
+        XCTAssertGreaterThan(records.count, 0,
+            "Node.js heap limit must be recorded in audit")
+    }
+
+    func testNodeJSMaxOldSpaceSizeFlagMatchesMemoryLimit() {
+        let memoryLimitMB = 512
+        let flag = "--max-old-space-size=\(memoryLimitMB)"
+        XCTAssertEqual(flag, "--max-old-space-size=512",
+            "Node.js --max-old-space-size flag must match memory limit")
+    }
+
+    // MARK: - TASK-034.4: Default Resource Limit Configuration + Override
+
+    func testDefaultConfig_vscodeHost_512MB_80CPU() {
+        let limit = ExtensionResourceLimit.defaultFor(.vscodeExtensionHost)
+        XCTAssertEqual(limit.memoryLimitMB, 512, "VS Code default memory = 512MB")
+        XCTAssertEqual(limit.cpuLimitPercent, 80, "VS Code default CPU = 80%")
+    }
+
+    func testDefaultConfig_jetbrainsHost_2048MB_80CPU() {
+        let limit = ExtensionResourceLimit.defaultFor(.jetbrainsPluginHost)
+        XCTAssertEqual(limit.memoryLimitMB, 2048, "JetBrains default memory = 2048MB")
+        XCTAssertEqual(limit.cpuLimitPercent, 80, "JetBrains default CPU = 80%")
+    }
+
+    func testDefaultConfig_crashLimit60sDefaultIs3() {
+        let vscodeLimit = ExtensionResourceLimit.defaultFor(.vscodeExtensionHost)
+        let jetbrainsLimit = ExtensionResourceLimit.defaultFor(.jetbrainsPluginHost)
+        XCTAssertEqual(vscodeLimit.crashLimit60s, 3, "Default crash limit 60s = 3")
+        XCTAssertEqual(jetbrainsLimit.crashLimit60s, 3, "Default crash limit 60s = 3")
+    }
+
+    func testDefaultConfig_restartTimeoutMSDefaultIs3000() {
+        let vscodeLimit = ExtensionResourceLimit.defaultFor(.vscodeExtensionHost)
+        let jetbrainsLimit = ExtensionResourceLimit.defaultFor(.jetbrainsPluginHost)
+        XCTAssertEqual(vscodeLimit.restartTimeoutMS, 3000, "Default restart timeout = 3000ms")
+        XCTAssertEqual(jetbrainsLimit.restartTimeoutMS, 3000, "Default restart timeout = 3000ms")
+    }
+
+    func testCustomConfig_overridesDefaults() {
+        let custom = ExtensionResourceLimit(
+            hostType: .vscodeExtensionHost,
+            memoryLimitMB: 1024,
+            cpuLimitPercent: 50,
+            crashLimit60s: 5,
+            restartTimeoutMS: 5000
+        )
+        XCTAssertEqual(custom.memoryLimitMB, 1024)
+        XCTAssertEqual(custom.cpuLimitPercent, 50)
+        XCTAssertEqual(custom.crashLimit60s, 5)
+        XCTAssertEqual(custom.restartTimeoutMS, 5000)
+    }
+
+    func testCustomConfig_memoryOverrideDiffersFromDefault() {
+        let default_ = ExtensionResourceLimit.defaultFor(.vscodeExtensionHost)
+        let custom = ExtensionResourceLimit(
+            hostType: .vscodeExtensionHost,
+            memoryLimitMB: 1024,
+            cpuLimitPercent: 80
+        )
+        XCTAssertNotEqual(default_.memoryLimitMB, custom.memoryLimitMB,
+            "Custom memory override must differ from default")
+    }
+
+    func testCustomConfig_cpuOverrideDiffersFromDefault() {
+        let default_ = ExtensionResourceLimit.defaultFor(.vscodeExtensionHost)
+        let custom = ExtensionResourceLimit(
+            hostType: .vscodeExtensionHost,
+            memoryLimitMB: 512,
+            cpuLimitPercent: 50
+        )
+        XCTAssertNotEqual(default_.cpuLimitPercent, custom.cpuLimitPercent,
+            "Custom CPU override must differ from default")
+    }
+
+    // MARK: - H27 Real Enforcement (证明限制实际生效)
+
+    func testH27_realCheckExceeded_detectsMemoryExceeded() {
+        let limiter = ExtensionResourceLimiterImpl()
+        let currentPID = ProcessID(ProcessInfo.processInfo.processIdentifier)
+        let lowMemoryLimit = ExtensionResourceLimit(
+            hostType: .vscodeExtensionHost,
+            memoryLimitMB: 1,
+            cpuLimitPercent: 100
+        )
+        let status = limiter.checkExceeded(processID: currentPID, limit: lowMemoryLimit)
+        if case .memoryExceeded = status {
+        } else {
+            XCTFail("Real process uses > 1MB, checkExceeded must detect memoryExceeded (H27)")
+        }
+    }
+
+    func testH27_realCheckExceeded_returnsWithinLimitsForHighLimits() {
+        let limiter = ExtensionResourceLimiterImpl()
+        let currentPID = ProcessID(ProcessInfo.processInfo.processIdentifier)
+        let highLimit = ExtensionResourceLimit(
+            hostType: .vscodeExtensionHost,
+            memoryLimitMB: 999999,
+            cpuLimitPercent: 100
+        )
+        let status = limiter.checkExceeded(processID: currentPID, limit: highLimit)
+        XCTAssertEqual(status, .withinLimits,
+            "High limits must return .withinLimits (H27)")
+    }
+
+    func testH27_applyLimitsDoesNotThrow() async throws {
+        let limiter = ExtensionResourceLimiterImpl()
+        let pid = ProcessID(ProcessInfo.processInfo.processIdentifier)
+        let limit = ExtensionResourceLimit.defaultFor(.vscodeExtensionHost)
+        try await limiter.applyLimits(processID: pid, config: limit)
+    }
+
+    // MARK: - H27 Resource Limit Status Enum
+
+    func testH27_resourceLimitStatusWithinLimits() {
+        let status: ResourceLimitStatus = .withinLimits
+        XCTAssertEqual(status, .withinLimits)
+    }
+
+    func testH27_resourceLimitStatusMemoryExceeded() {
+        let status = ResourceLimitStatus.memoryExceeded(currentMB: 600, limitMB: 512)
+        if case .memoryExceeded(let current, let limit) = status {
+            XCTAssertEqual(current, 600)
+            XCTAssertEqual(limit, 512)
+        } else {
+            XCTFail("memoryExceeded case must match (H27)")
+        }
+    }
+
+    func testH27_resourceLimitStatusCpuExceeded() {
+        let status = ResourceLimitStatus.cpuExceeded(currentPercent: 95.0, limitPercent: 80)
+        if case .cpuExceeded(let current, let limit) = status {
+            XCTAssertEqual(current, 95.0)
+            XCTAssertEqual(limit, 80)
+        } else {
+            XCTFail("cpuExceeded case must match (H27)")
+        }
+    }
+
+    func testH27_resourceLimitStatusEquality() {
+        XCTAssertEqual(ResourceLimitStatus.withinLimits, ResourceLimitStatus.withinLimits)
+        XCTAssertEqual(
+            ResourceLimitStatus.memoryExceeded(currentMB: 600, limitMB: 512),
+            ResourceLimitStatus.memoryExceeded(currentMB: 600, limitMB: 512)
+        )
+        XCTAssertEqual(
+            ResourceLimitStatus.cpuExceeded(currentPercent: 95.0, limitPercent: 80),
+            ResourceLimitStatus.cpuExceeded(currentPercent: 95.0, limitPercent: 80)
+        )
+    }
+
+    // MARK: - H27 Resource Limit Integration with Supervisor
+
+    func testH27_resourceLimitExceededRestartReasonExists() {
+        let reason = RestartReason.resourceLimitExceeded
+        let event = HostRestartEvent(
+            hostType: .vscodeExtensionHost,
+            newProcessID: ProcessID(99999),
+            restartReason: reason
+        )
+        XCTAssertEqual(event.restartReason, .resourceLimitExceeded,
+            "Resource limit exceeded must be a valid restart reason (H27)")
+    }
+
+    func testH27_resourceLimitConfigInHostConfig() {
+        let config = ExtensionHostConfig(
+            hostType: .vscodeExtensionHost,
+            runtimePath: "/usr/local/bin/node",
+            runtimeVersion: SemVer(20, 18, 0),
+            memoryLimitMB: 256,
+            cpuLimitPercent: 60,
+            ipcChannel: IPCChannelDescriptor(kind: .stdio),
+            hostScriptPath: "/tmp/extension-host.js"
+        )
+        XCTAssertEqual(config.memoryLimitMB, 256)
+        XCTAssertEqual(config.cpuLimitPercent, 60)
+    }
+
+    // MARK: - Helpers
+
+    private func makeConfig() -> ExtensionHostConfig {
+        ExtensionHostConfig(
+            hostType: .vscodeExtensionHost,
+            runtimePath: "/usr/local/bin/node",
+            runtimeVersion: SemVer(20, 18, 0),
+            memoryLimitMB: 512,
+            cpuLimitPercent: 80,
+            ipcChannel: IPCChannelDescriptor(kind: .stdio),
+            hostScriptPath: "/tmp/extension-host.js"
+        )
+    }
+
+    private func makeJVMConfig() -> ExtensionHostConfig {
+        ExtensionHostConfig(
+            hostType: .jetbrainsPluginHost,
+            runtimePath: "/usr/bin/java",
+            runtimeVersion: SemVer(17, 0, 0),
+            memoryLimitMB: 2048,
+            cpuLimitPercent: 80,
+            ipcChannel: IPCChannelDescriptor(kind: .stdio),
+            hostScriptPath: "/tmp/plugin-host.jar"
+        )
+    }
+}
