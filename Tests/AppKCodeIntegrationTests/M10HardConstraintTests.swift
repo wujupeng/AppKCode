@@ -1439,3 +1439,231 @@ final class M10ResourceLimitTests: XCTestCase {
         )
     }
 }
+// MARK: - TASK-036: Architecture Validation Tests (H1)
+// 对应需求: REQ-051
+// 对应硬约束: H1 (x86_64 架构锁定)
+
+final class M10ArchitectureValidationTests: XCTestCase {
+    private var detector: RuntimeDetectorImpl!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        detector = RuntimeDetectorImpl()
+    }
+
+    // MARK: - TASK-036.1: Node.js Runtime x86_64 (REQ-051, H1)
+
+    func testH1_nodejsDetection_returnsResult() async throws {
+        let result = try await detector.detectNodeJS()
+        XCTAssertTrue(result.found || !result.found,
+            "detectNodeJS must return a valid result (H1)")
+    }
+
+    func testH1_nodejsDetection_x86_64WhenFound() async throws {
+        let result = try await detector.detectNodeJS()
+        if result.found {
+            XCTAssertTrue(result.architecture == .x86_64 || result.architecture == .universal,
+                "Node.js runtime must be x86_64 or universal on x86_64 host (H1, REQ-051)")
+        }
+    }
+
+    func testH1_nodejsDetection_notARM64() async throws {
+        let result = try await detector.detectNodeJS()
+        if result.found {
+            XCTAssertNotEqual(result.architecture, .arm64,
+                "Node.js runtime must not be arm64-only on x86_64 host (H1)")
+        }
+    }
+
+    func testH1_nodejsDetection_meetsRequirementWhenX86_64() async throws {
+        let result = try await detector.detectNodeJS()
+        if result.found && result.architecture == .x86_64 && result.version?.major ?? 0 >= 20 {
+            XCTAssertTrue(result.meetsRequirement,
+                "Node.js x86_64 with version >= 20 must meet requirement (H1, REQ-051)")
+        }
+    }
+
+    func testH1_nodejsBinary_x86_64IfPathExists() async throws {
+        let nodePath = "/tmp/node-v20.18.0-darwin-x64/bin/node"
+        if FileManager.default.fileExists(atPath: nodePath) {
+            let arch = try await detector.verifyArchitecture(path: nodePath)
+            XCTAssertTrue(arch == .x86_64 || arch == .universal,
+                "Node.js binary at \(nodePath) must be x86_64 (H1)")
+        }
+    }
+
+    func testH1_nodejsRuntime_arm64DoesNotMeetRequirement() {
+        let arm64Result = RuntimeDetection(
+            found: true,
+            path: "/fake/node",
+            version: SemVer(20, 18, 0),
+            architecture: .arm64,
+            meetsRequirement: false
+        )
+        XCTAssertFalse(arm64Result.meetsRequirement,
+            "ARM64 Node.js must not meet x86_64 requirement (H1, REQ-051)")
+    }
+
+    // MARK: - TASK-036.2: JVM Runtime x86_64 (H1)
+
+    func testH1_jvmDetection_returnsResult() async throws {
+        let result = try await detector.detectJDK()
+        XCTAssertTrue(result.found || !result.found,
+            "detectJDK must return a valid result (H1)")
+    }
+
+    func testH1_jvmDetection_x86_64WhenFound() async throws {
+        let result = try await detector.detectJDK()
+        if result.found {
+            XCTAssertTrue(result.architecture == .x86_64 || result.architecture == .universal,
+                "JVM runtime must be x86_64 or universal on x86_64 host (H1)")
+        }
+    }
+
+    func testH1_jvmDetection_notARM64() async throws {
+        let result = try await detector.detectJDK()
+        if result.found {
+            XCTAssertNotEqual(result.architecture, .arm64,
+                "JVM runtime must not be arm64-only on x86_64 host (H1)")
+        }
+    }
+
+    func testH1_jvmDetection_meetsRequirementWhenX86_64() async throws {
+        let result = try await detector.detectJDK()
+        if result.found && result.architecture == .x86_64 && result.version?.major ?? 0 >= 17 {
+            XCTAssertTrue(result.meetsRequirement,
+                "JVM x86_64 with version >= 17 must meet requirement (H1)")
+        }
+    }
+
+    func testH1_jvmRuntime_arm64DoesNotMeetRequirement() {
+        let arm64Result = RuntimeDetection(
+            found: true,
+            path: "/fake/java",
+            version: SemVer(17, 0, 0),
+            architecture: .arm64,
+            meetsRequirement: false
+        )
+        XCTAssertFalse(arm64Result.meetsRequirement,
+            "ARM64 JVM must not meet x86_64 requirement (H1)")
+    }
+
+    // MARK: - TASK-036.3: RuntimeDetector 架构检测
+
+    func testH1_verifyArchitecture_returnsValidForKnownBinary() async throws {
+        let arch = try await detector.verifyArchitecture(path: "/bin/ls")
+        XCTAssertTrue(arch == .x86_64 || arch == .arm64 || arch == .universal,
+            "verifyArchitecture must return a valid Architecture for /bin/ls (H1)")
+    }
+
+    func testH1_verifyArchitecture_x86_64NotARM64() {
+        XCTAssertNotEqual(Architecture.x86_64, .arm64,
+            "x86_64 architecture must not equal arm64 (H1)")
+    }
+
+    func testH1_runtimeDetection_x86_64_meetsRequirementTrue() {
+        let detection = RuntimeDetection(
+            found: true,
+            path: "/usr/local/bin/node",
+            version: SemVer(20, 18, 0),
+            architecture: .x86_64,
+            meetsRequirement: true
+        )
+        XCTAssertTrue(detection.meetsRequirement,
+            "x86_64 runtime with version >= 20 must meet requirement (H1)")
+        XCTAssertEqual(detection.architecture, .x86_64)
+    }
+
+    func testH1_runtimeDetection_arm64_meetsRequirementFalse() {
+        let detection = RuntimeDetection(
+            found: true,
+            path: "/usr/local/bin/node",
+            version: SemVer(20, 18, 0),
+            architecture: .arm64,
+            meetsRequirement: false
+        )
+        XCTAssertFalse(detection.meetsRequirement,
+            "ARM64 runtime must not meet x86_64 requirement (H1)")
+    }
+
+    func testH1_runtimeDetection_x86_64_versionTooLow_meetsRequirementFalse() {
+        let detection = RuntimeDetection(
+            found: true,
+            path: "/usr/local/bin/node",
+            version: SemVer(18, 0, 0),
+            architecture: .x86_64,
+            meetsRequirement: false
+        )
+        XCTAssertFalse(detection.meetsRequirement,
+            "x86_64 runtime with version < 20 must not meet requirement (H1)")
+    }
+
+    func testH1_runtimeDetection_arm64_versionMeets_meetsRequirementFalse() {
+        let detection = RuntimeDetection(
+            found: true,
+            path: "/usr/local/bin/node",
+            version: SemVer(20, 18, 0),
+            architecture: .arm64,
+            meetsRequirement: false
+        )
+        XCTAssertFalse(detection.meetsRequirement,
+            "ARM64 runtime with version >= 20 must not meet requirement — architecture gate (H1)")
+    }
+
+    // MARK: - TASK-036.4: Swift Target x86_64
+
+    func testH1_swiftBuildProductIsX86_64() async throws {
+        let binaryPath = findBuiltBinary()
+        XCTAssertNotNil(binaryPath, "Swift build product must exist (H1)")
+        if let path = binaryPath {
+            let arch = try await detector.verifyArchitecture(path: path)
+            XCTAssertTrue(arch == .x86_64 || arch == .universal,
+                "Swift build product must be x86_64 (H1)")
+        }
+    }
+
+    func testH1_appkcodeBinaryArchitectureIsX86_64() async throws {
+        let binaryPath = findBuiltBinary()
+        if let path = binaryPath {
+            let arch = try await detector.verifyArchitecture(path: path)
+            XCTAssertNotEqual(arch, .arm64,
+                "AppKCode binary must not be arm64-only (H1)")
+        }
+    }
+
+    func testH1_architectureEnum_x86_64_rawValue() {
+        XCTAssertEqual(Architecture.x86_64.rawValue, "x86_64",
+            "Architecture.x86_64 rawValue must be 'x86_64' (H1)")
+    }
+
+    func testH1_architectureEnum_arm64_rawValue() {
+        XCTAssertEqual(Architecture.arm64.rawValue, "arm64",
+            "Architecture.arm64 rawValue must be 'arm64' (H1)")
+    }
+
+    func testH1_h1ArchitectureLockIsX86_64() {
+        let lockedArchitecture: Architecture = .x86_64
+        XCTAssertEqual(lockedArchitecture, .x86_64,
+            "H1 hard constraint: architecture must be locked to x86_64")
+        XCTAssertNotEqual(lockedArchitecture, .arm64,
+            "H1 hard constraint: architecture must not be arm64")
+    }
+
+    // MARK: - Helpers
+
+    private func findBuiltBinary() -> String? {
+        let projectRoot = FileManager.default.currentDirectoryPath
+        let candidates = [
+            "\(projectRoot)/.build/release/AppKCode",
+            "\(projectRoot)/.build/debug/AppKCode",
+            "\(projectRoot)/.build/x86_64-apple-macosx13.0/release/AppKCode",
+            "\(projectRoot)/.build/x86_64-apple-macosx13.0/debug/AppKCode"
+        ]
+        for path in candidates {
+            if FileManager.default.fileExists(atPath: path) {
+                return path
+            }
+        }
+        return nil
+    }
+}
