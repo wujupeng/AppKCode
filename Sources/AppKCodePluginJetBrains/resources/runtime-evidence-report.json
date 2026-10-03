@@ -1,0 +1,235 @@
+{
+  "reportId": "evd-run-2026-10-01T13:32:16.064Z",
+  "generatedAt": "2026-10-01T13:32:16.065Z",
+  "environment": {
+    "os": "macOS 13.7.8",
+    "arch": "x86_64",
+    "nodeVersion": "v20.18.0",
+    "jdkVersion": "unknown",
+    "swiftVersion": "swift-driver version: 1.75.2 Apple Swift version 5.8.1 (swiftlang-5.8.0.124.5 clang-1403.0.22.11.100)"
+  },
+  "verdicts": [
+    {
+      "evidenceId": "EVD-01",
+      "reqId": "APPK-M10-P4-EVD-REQ-01",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-01-1",
+          "evidenceId": "EVD-01",
+          "kind": "pid",
+          "content": "hostPid=11828, parentPid=11827",
+          "capturedAt": "2026-10-01T13:32:16.173Z"
+        },
+        {
+          "fragmentId": "frag-EVD-01-2",
+          "evidenceId": "EVD-01",
+          "kind": "notification",
+          "content": "host.ready received",
+          "capturedAt": "2026-10-01T13:32:16.173Z"
+        }
+      ],
+      "reason": "Host started with unique PID"
+    },
+    {
+      "evidenceId": "EVD-02",
+      "reqId": "APPK-M10-P4-EVD-REQ-02",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-02-3",
+          "evidenceId": "EVD-02",
+          "kind": "notification",
+          "content": "plugin.loaded",
+          "capturedAt": "2026-10-01T13:32:16.201Z"
+        },
+        {
+          "fragmentId": "frag-EVD-02-4",
+          "evidenceId": "EVD-02",
+          "kind": "stdout",
+          "content": "classLoaderId=cl-com.appkcode.test-plugin-1790861536200",
+          "capturedAt": "2026-10-01T13:32:16.201Z"
+        }
+      ],
+      "reason": "{\"loaded\":true,\"pluginId\":\"com.appkcode.test-plugin\",\"classLoaderId\":\"cl-com.appkcode.test-plugin-1790861536200\"}"
+    },
+    {
+      "evidenceId": "EVD-03",
+      "reqId": "APPK-M10-P4-EVD-REQ-03",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-03-5",
+          "evidenceId": "EVD-03",
+          "kind": "notification",
+          "content": "plugin.activated",
+          "capturedAt": "2026-10-01T13:32:16.203Z"
+        }
+      ],
+      "reason": "{\"activated\":true,\"pluginId\":\"com.appkcode.test-plugin\"}"
+    },
+    {
+      "evidenceId": "EVD-04",
+      "reqId": "APPK-M10-P4-EVD-REQ-04",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-04-6",
+          "evidenceId": "EVD-04",
+          "kind": "jsonrpc_request",
+          "content": "project.getBaseDir",
+          "capturedAt": "2026-10-01T13:32:16.204Z"
+        }
+      ],
+      "reason": "project.getBaseDir -> \"/Users/test/project\""
+    },
+    {
+      "evidenceId": "EVD-05",
+      "reqId": "APPK-M10-P4-EVD-REQ-05",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-05-7",
+          "evidenceId": "EVD-05",
+          "kind": "jsonrpc_response",
+          "content": "editor.getText -> \"Hello World\"",
+          "capturedAt": "2026-10-01T13:32:16.205Z"
+        }
+      ],
+      "reason": "returnValue=\"Hello World\""
+    },
+    {
+      "evidenceId": "EVD-06",
+      "reqId": "APPK-M10-P4-EVD-REQ-06",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-06-8",
+          "evidenceId": "EVD-06",
+          "kind": "jsonrpc_request",
+          "content": "ui.showInfoMessage",
+          "capturedAt": "2026-10-01T13:32:16.206Z"
+        },
+        {
+          "fragmentId": "frag-EVD-06-9",
+          "evidenceId": "EVD-06",
+          "kind": "jsonrpc_response",
+          "capturedAt": "2026-10-01T13:32:16.206Z"
+        }
+      ],
+      "reason": "UI RPC request/response completed"
+    },
+    {
+      "evidenceId": "EVD-07",
+      "reqId": "APPK-M10-P4-EVD-REQ-07",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-07-10",
+          "evidenceId": "EVD-07",
+          "kind": "notification",
+          "content": "plugin.loadRejected: {\"pluginId\":\"test-plugin-internal-api\",\"reason\":\"Internal API references detected\",\"references\":[\"const INTERNAL_API_REFERENCE = 'com.intellij.psi.impl.PsiElementImpl';\"]}",
+          "capturedAt": "2026-10-01T13:32:16.236Z"
+        }
+      ],
+      "reason": "loaded=false, reason=internal-api-detected"
+    },
+    {
+      "evidenceId": "EVD-08",
+      "reqId": "APPK-M10-P4-EVD-REQ-08",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-08-11",
+          "evidenceId": "EVD-08",
+          "kind": "auth_decision",
+          "content": "sessionID=evidence-session-001, capabilityID=test.readCapability",
+          "capturedAt": "2026-10-01T13:32:16.237Z"
+        }
+      ],
+      "reason": "sessionID present -> H21->H20->H23 chain"
+    },
+    {
+      "evidenceId": "EVD-09",
+      "reqId": "APPK-M10-P4-EVD-REQ-09",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-09-12",
+          "evidenceId": "EVD-09",
+          "kind": "audit_record",
+          "content": "1 lifecycle notifications: plugin.loadRejected",
+          "capturedAt": "2026-10-01T13:32:16.237Z"
+        }
+      ],
+      "reason": "1 audit notifications captured"
+    },
+    {
+      "evidenceId": "EVD-10",
+      "reqId": "APPK-M10-P4-EVD-REQ-10",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-10-13",
+          "evidenceId": "EVD-10",
+          "kind": "notification",
+          "content": "plugin.deactivated + host.shutdown",
+          "capturedAt": "2026-10-01T13:32:16.238Z"
+        }
+      ],
+      "reason": "deactivated=true, shutdown=true"
+    },
+    {
+      "evidenceId": "EVD-11",
+      "reqId": "APPK-M10-P4-EVD-REQ-11",
+      "verdict": "PASS",
+      "evidenceFragments": [
+        {
+          "fragmentId": "frag-EVD-11-14",
+          "evidenceId": "EVD-11",
+          "kind": "pid",
+          "content": "parentPid=11827, childPid=11828, pidDifferent=true",
+          "capturedAt": "2026-10-01T13:32:16.811Z"
+        },
+        {
+          "fragmentId": "frag-EVD-11-15",
+          "evidenceId": "EVD-11",
+          "kind": "file_arch",
+          "content": "arch=x64, x86_64=true",
+          "capturedAt": "2026-10-01T13:32:16.811Z"
+        },
+        {
+          "fragmentId": "frag-EVD-11-16",
+          "evidenceId": "EVD-11",
+          "kind": "process_tree",
+          "content": "PID  PPID COMMAND\n11828 11827 node /Users/hunt/Projects/AppKCode/Sources/AppKCodePluginJetBrains/resources/plugin-host.js",
+          "capturedAt": "2026-10-01T13:32:16.811Z"
+        },
+        {
+          "fragmentId": "frag-EVD-11-17",
+          "evidenceId": "EVD-11",
+          "kind": "notification",
+          "content": "crashIsolated=true",
+          "capturedAt": "2026-10-01T13:32:16.811Z"
+        }
+      ],
+      "reason": "pidDifferent=true, archOk=true, crashIsolated=true"
+    }
+  ],
+  "overallVerdict": "PASS",
+  "m9FrozenCheck": {
+    "m9SourceDiffEmpty": true,
+    "baselineCommit": "23579c2",
+    "currentHead": "23579c2c22b7a704b6341ee7fd68aa6f5638e407",
+    "m9FilesChanged": []
+  },
+  "phase4ScopeCheck": {
+    "openApiCountUnchanged": true,
+    "expectedOpenApiCount": 9,
+    "actualOpenApiCount": 9,
+    "shimApiCountUnchanged": true,
+    "expectedShimApiCount": 24,
+    "actualShimApiCount": 24,
+    "adapterContractUnchanged": true
+  }
+}

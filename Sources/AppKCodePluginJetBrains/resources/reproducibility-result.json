@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-10-01T13:32:20Z",
+  "totalRuns": 3,
+  "runs": [ {"runIndex": 1, "exitCode": 0, "overallVerdict": "PASS"}, {"runIndex": 2, "exitCode": 0, "overallVerdict": "PASS"}, {"runIndex": 3, "exitCode": 0, "overallVerdict": "PASS"}],
+  "reproducible": true,
+  "overallVerdicts": ["PASS", "PASS", "PASS"]
+}
