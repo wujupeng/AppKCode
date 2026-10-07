@@ -106,6 +106,9 @@ struct AuditRecordRowView: View {
         case .capability(let capID, let extID): return "cap:\(capID.rawValue):\(extID.rawValue)"
         case .contractNegotiation(let id): return "contract:\(id.rawValue)"
         case .permissionDecision(let id): return "perm:\(id.rawValue)"
+        case .aiInference(let endpoint): return "aiInference:\(endpoint)"
+        case .gaiRuntime(let phase): return "gaiRuntime:\(phase)"
+        case .aiToolCall(let tool): return "aiToolCall:\(tool.rawValue)"
         case .none: return "none"
         }
     }

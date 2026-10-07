@@ -12,15 +12,21 @@ public enum AIAuditEventKind: String, Sendable, Codable, Equatable {
     case gaiWorkflowStarted
     case gaiWorkflowPhaseStarted
     case gaiWorkflowPhaseCompleted
+    case gaiWorkflowPhaseFailed
     case gaiWorkflowCompleted
     case gaiWorkflowCancelled
     case gaiWorkflowFailed
     case aiInferenceRequested
     case aiInferenceCompleted
+    case aiInferenceFailed
     case aiToolCallRequested
     case aiToolCallAuthorized
     case aiToolCallExecuted
     case aiToolCallDenied
+    case aiToolCallCompleted
+    case aiToolCallFailed
+    case aiAuthorizationRequested
+    case aiAuthorizationDecision
 }
 
 // MARK: - AIAuditEvent

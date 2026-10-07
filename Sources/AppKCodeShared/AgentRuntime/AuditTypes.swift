@@ -25,6 +25,10 @@ public enum AuditTarget: Sendable, Codable, Equatable {
     case contractNegotiation(ExtensionID)
     case permissionDecision(ExtensionID)
     case none
+    // M11-P5: AI audit target extensions (H28-6, H28-10)
+    case aiInference(modelEndpoint: String)
+    case gaiRuntime(phase: String)
+    case aiToolCall(tool: ToolID)
 }
 
 // MARK: - Extension Audit Action (TASK-008.2, H23)
